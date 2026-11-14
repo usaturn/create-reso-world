@@ -130,3 +130,114 @@ stdout の失敗イベントは JSON 全体を分類に流さない。error/fail
 ## 事前検証
 
 分離 worktree で `uv run --locked pytest .agents/skills/pr-review-fix-loop/tests .agents/skills/review-fix-planning/tests/test_finalize.py -q` → 196 passed、終了コード0。依存を uv で準備した。コード変更前の基準であり実装完了ではない。
+
+## PR #439 レビュー修正・サイクル1
+
+### 実行許可と入力
+
+利用者の #356 --merge の指示により、review-fix-planning の完遂で現行HEADの指摘を判定する。正式なSpecはこのファイル1件を更新し、別のround別文書を作らない。今回の対象は reviewed_head `c3a989996a6a0c8ebc7998cfeb1303a7f5902346`、base `f08006d0b5d595bfc9d5ec4b2d3fdda0d89a5539`。planner は `openai-codex/gpt-6.1-sol`（pi、実環境変数、effort xhigh）。
+
+| レビューファイル | 実モデル / runtime | HEAD | 今回実行 | 推奨 |
+|---|---|---|---|---|
+| SWE-2-Max.md | SWE-2 Max / devin | c3a989996a6a | true | Approve |
+| deepseek-v4.1-flash.md | deepseek-v4.1-flash / pi | c3a989996a6a | true | Approve |
+| claude-opus-5-5.md | claude-opus-5-5 / claude-code | c3a989996a6a | true | Approve |
+
+全員accepted、rejected/retainedなし。Merge recommendationは原ファイルの値であり採否の根拠にしない。確認済み一覧: `reviews/usaturn/create-reso-world/#439-feat-issue-356-loop-reconcile/verified/c3a989996a6a.json`。元候補一覧3件とMarkdownのvalidate/check-pair成功。全3指摘をpinned HEADの隔離worktreeとbase archiveで確認し、隔離worktreeとその親は回収済み。
+
+### 採否
+
+| 出典 | 重大度 | 区分 | 根拠 |
+|---|---|---|---|
+| claude-opus-5-5#M-1@c3a989996a6a | Medium | 対応する（fix） | 通常のclaude-codeレビュアーが認証切れ/利用上限で失敗すると、CLIが付ける認証/上限情報までunknownとなり、回収後に根拠を失う。診断の主要出力が誤る。(a) 同じ入力をbase/headへ与えauthentication/rate_limit→unknownを実行再現した。 |
+| deepseek-v4.1-flash#L-1@c3a989996a6a | Low | 対応しない（skip） | lock無しのstatus PRはreconciledキーを持たないことを再現。run未特定で既存のlock/next情報を返す形の差であり、照合成功を誤報せず、status --runでは取得できる。参照側のKeyErrorは可視の失敗。致命性なし。run未特定のstatusから成功有無を判定する正式経路が追加された場合に再検討。 |
+| claude-opus-5-5#I-1@c3a989996a6a | Info | 対応しない（skip） | ended後の再abortと日時不変がstateテストのパラメータとheld/recoverテストで重複することを静的確認。保守性・D基準の指摘であり、致命的な誤動作や回帰ガードの削除ではないため、review-fix-planningの採否基準では修正しない。元の成功/拒否ガードが変わる場合に代表化を再検討。 |
+
+解消済み0 / 対応する1 / 対応しない2。以前の判断記録は無く、全てnew。上記2件の制約をPR本文に開示し、テストの重複がすべて解消したとは報告しない。
+
+### 要件対応と守る条件の設計
+
+元Spec設計5・Issueの診断条件は「失敗の報告だけを分類し、モデル本文・ツール出力・JSON全体は使わない」。CLIが付ける失敗metadataとassistantの本文は別の情報である。本文非分類を守りながら、既にCLI/adapterが示した失敗原因は維持する。reconcile/finalize/HEAD/日時/3値merged/Herdr/collectには変更を広げない。
+
+今回の指摘は、Task2レビュー修正のcommit `038784ec` が本文除外をイベント型全体に適用したことで生じた回帰。設計見直しのきっかけ2（以前の修正による回帰）として扱い、同じ判定に依存する経路を仕組みから見直す。以前はモデル本文とCLI由来エラー欄を同じ型として扱ったため、本文を捨てると必要なmetadataも捨てた。
+
+検討した案:
+- その入力だけを個別に直す: 隣のCLI欄または本文経路を再び落とすため不採用。
+- **採用: CLIが供給する失敗情報と本文を区別する条件を、既存の診断入口から保存まで一貫させる。** 具体的な実装は指定担当へ委ね、原指摘と受け入れ条件を渡す。
+- 認証失敗の診断を常にunknownとして保証を狭める: 元のエラー欄保持要件を落とすので不採用。
+
+| 守る条件・原因 | 経路 | 判定 | 変更前の挙動 | 観測する結果・assertion | 確認方法 / 実行証拠 |
+|---|---|---|---|---|---|
+| CLI失敗metadataと本文を取り違えない。型全体の除外でmetadataも失う | Claude assistant.error → _failure_event → _event_error_text → diagnostic_text → classify_cause | 修正する | authentication_failed/rate_limitがunknown | 既知CLIエラーはauthentication/rate_limit。本文だけではunknown | base/head対照で退行再現済み。修正後に同じ入力とS代表1件で検証 |
+| 本文・ツール結果は分類に使わない | tool_result/result/assistant/userの本文、is_error、message/content/result | 既に満たす、修正後も確認 | 本文のみはunknown/reported保持 | ツール本文やモデル本文の偽HTTP401で原因を作らない。CLI欄と本文を混ぜない | 変更後テストと一時対照。元の7件REDと成功対照も維持 |
+| 成功試行に原因を付けない | diagnose_attempt → diagnostic_text(successful) | 既に満たす | successはunknown | state=successならCLIエラー表記が残っていてもunknown | 既存成功/失敗対照を実行 |
+| proseをCLIイベントと取り違えない | Devin/未知runtime → prose=True | 既に満たす | stdoutは分類文にしない | モデルの例示・JSON断片は原因にしない | 既存proseテスト実行 |
+| 最後の失敗と回復前の失敗を区別 | retry.finalError、piの最後のassistant.errorMessage | 既に満たす | 既存finalError/最終errorMessageだけを利用 | 回復後は原因を付けず、使い切った失敗は既存の分類 | 既存retry/piテスト実行 |
+| 承認根拠と認証の優先を維持 | approval_evidence / diagnose_attempt / keep_diagnostic → 保存 → ログ回収 | 既に満たす | 検証済み承認根拠を保存、認証を優先 | 列挙/根拠以外のログ本文を保存せず、回収後にも正しい分類が残る | 既存approval/cleanup/secretテスト＋controllerの統合確認 |
+| 文書と実装でmetadataと本文を同一視しない | records.md 4.1、Spec設計5、docstring | 修正する | records.mdはassistantイベント全体を除外と表現 | 実際に分類する欄と除外する本文を説明 | 修正差分と実入力/出力を照合。固定文言テストは書かない |
+| 出力外のログを読まない | read_log_tail / fd / sensitive / 停止確認 | 対象外（今回の原因ではない）、既存回帰を実行 | fd固定済み | 祖先差替えを拒否し機密を保持 | 既存diagスイートで確認 |
+
+共有条件の統合担当はcontroller。CLI raw metadataの解釈→分類→保存→回収の一連の出力を確認し、担当のテスト成功だけを意味の保証へ読み替えない。変更対象はloop.pyの診断節・test_loop_diagnostics.pyのS代表ケース・records.md 4.1のみ。
+
+### 検証と実行（実装前に定めた手順）
+
+実装はループ指定の `run_roles.py --phase implement` / pi_alibaba_qwen4-max_max。既知エラーmetadataはS（誤った結果と回収後の根拠喪失を防ぐ）に当たるため、実装前に代表1件をREDにし、本文非分類の成功対照を残す。L/F/Dのテストを増やさない。対象pytestに加えてスキルのpytest、shell27、layout/diffを実行する。自己レビューは `run_roles.py --phase self-review` の1回だけでself-review/fix-checkの両方を行い、原指摘と文書/ファイルの主張・検出力を確かめる。時刻・入力/結果・停止確認・実担当はセッションに記録する。
+
+判定時点の結論は1（修正して既存PRへpush）。その時点では実装完了とはしなかった。自己レビュー後の追加修正は再レビューしない規則を維持する。
+
+### 実装受取後の反証
+初回実装commit8e694b25はassistant.errorの原因を回復したが、controllerの隔離反証でtool_result.errorおよびuser.errorまでauthenticationにすることを確認。これは元の本文非分類条件の未達であり、M-1の修正をまだ完了にしない。CLI由来かをerrorというキー名だけから推定した前提が原因。自己レビュー予約前に同じ実装担当へ原条件と反証入力を渡し、修正を継続する。観測はimplementation-counterexample.jsonlに保存、隔離worktreeは回収済み。
+
+### 修正後の実測（自己レビュー前）
+
+- 対象コード: `80e629b0a0e59fa3d000475a5e21b51684f5dc3b`。Qwen の修正2回を停止・範囲確認後に取り込み。最初の修正で残った tool_result.error/user.error の誤分類は2回目で修正した。
+- 同じ入力の実行では Claude assistant.error の authentication_failed/rate_limit を保持し、tool_result/user/result の error と本文は原因に使わない。成功した試行は unknown を保つ。
+- Controller がこの HEAD で 1,561 pytest、27 shell suites、layout、diff check を実行し全て成功。Gitleaks も成功。
+- CLI の実サービス呼出しや実認証を用いた検証は行わない。
+
+
+### 修正と自己レビューの結果（サイクル1）
+
+- 実装は requested=actual=`pi_alibaba_qwen4-max_max`、観測identity `alibaba/qwen4-max-preview`、effort max。2回ともrunner成功・停止確認済み・outside_changesなし。Devin fallbackは未使用。
+- 取り込み: `8e694b25bcfe98239947e8212eb7b5db2ff64b09` → `80e629b0a0e59fa3d000475a5e21b51684f5dc3b`。最初の成功応答を合格とはせず、tool/user errorの反証を経て2回目を検証した。
+- 自己レビューの予約は `run_roles.py --phase self-review` の1回。割当は self-review=self / fix-check=self、実装は指定Qwen。予約を解除・別ファイルで取り直していない。primary sp-reviewへの事前試行はscope/template不足、次は実行ツール不在でレビュー前にNEEDS_CONTEXTとなり、成果・0件成功とはせずcontrollerがinlineで完遂した。
+- PR全体の自己レビュー: gpt-6.1-sol / pi（helperが現在のPI環境から観測）、613.39秒。固定base f08006d0..80e629b0の全差分と変更11ファイル全文を精読。Low1/Info2、Critical/High/Mediumなし。Markdown/候補のpair検査とhelper complete/cleanup成功。独立した外部レビューとは主張しない。
+- fix-check: controller openai-codex/gpt-6.1-sol / pi、495秒。主張9件・変更3ファイル・文書候補136件を全件判定。C-1..C-8は満たす。C-9（テスト代表化）は同じ本文guardの重複をV-1として確認し、下記の非致命的なskipへ記録。テストファイルのfailedは実行失敗でなくD基準の静的違反であり、隠してpassedにしていない。
+- 機能の追加修正は自己レビュー後には行っていない。保存した自己レビューcommitと祖先は書き換えない。
+
+#### 影響経路の実測
+
+| 経路・条件 | 80e629b0 の観測 | 証拠 |
+|---|---|---|
+| assistant.error → 分類 | authentication_failed / rate_limitをauthentication / rate_limitへ回復（旧c3a98999はunknown） | 旧新13入力のreproduce-fixed.py |
+| tool_result/user/result error・assistant本文 | 日本語・複数行・偽HTTP401でもunknown | 同じ13入力、関連124 pytest |
+| 成功 / prose | 古いエラー・stderrが残る成功もunknown、Devin例示stdoutもunknown | 同じ13入力、既存pytest |
+| retry / pi最後のメッセージ | 回復前はunknown、使い切り/最後の失敗だけrate_limit等 | 同じ13入力、既存pytest |
+| messageとerror.message | 汎用messageがあっても本当のerror.messageでauthentication | 同じ13入力 |
+| approval / 認証優先 / 保存・回収 / 機密 | 実adapter＋fake CLIの経路で既存の根拠・認証優先・秘密非保存を維持 | 関連124 pytest |
+| read_log_tail | 正常読取と祖先差替え拒否・sensitive/未停止を維持 | 関連124 pytest、コード差分は今回未変更 |
+| 文書 / docstring | assistantのCLI errorだけ保持し、tool/user/result errorと本文は除外すると記述 | records.md 4.1とコード・13入力の照合 |
+| テスト代表性 | 同じname != assistantガードをtool/error-stringとuser/error-objectで重複 | fix-check V-1 / 自己レビューI-2。機能を致命に壊す指摘ではなくskip |
+
+失敗時の状態比較は、診断が管理する出力ツリー全エントリの有無・bytesのSHA・mode・link種別/参照先を前後比較した。13入力すべてで不変（reproduce-fixed-state.py、旧版/修正版/guard削除コピー）。一時HOMEや認証を切り替える操作・外部コマンドは診断処理に無い。元のログや診断の本文を成功根拠にせず、返る列挙値と正常対照で判定した。修正版から本文除外のガード1つだけを外したarchiveでは、負例3入力が誤分類し、恒久の負例2件が2 failed、assistantの陽性対照は1 passed。元checkoutではガードを外していない。
+
+#### 自己レビュー・fix-checkの採否
+
+| 出典 | 判定 | 理由 / 見直す条件 |
+|---|---|---|
+| gpt-6.1-sol-commit-80e629b0…#L-1 | skip（元deepseek L-1と同じ） | lock無しstatus PRの応答形だけであり、run指定は使える。誤った照合成功を返さない。正式経路がこのキーを必須にしたら再検討 |
+| gpt-6.1-sol-commit-80e629b0…#I-1 | skip（元Opus I-1と同じ） | 同じ再abortガードのD重複。致命的な誤動作や回帰ガード削除ではない。元guard変更時に代表化を再検討 |
+| gpt-6.1-sol-commit-80e629b0…#I-2 / fix-check#V-1@80e629b0a0e5 | skip（新規） | 本文guardのD重複。守り自体と回帰検出力は成立する。guard変更・代表化を名指しされたとき再検討 |
+
+正式な参照と全sourcesは判断の記録へ保存する。追加修正の対象はM-1のままで、自己レビューの非致命的な指摘に合わせて採否基準を変えていない。PR説明の「重複をすべて対応済み」という記述は撤回し、実在する制約を開示する。
+
+#### 検証・成果の保存先
+
+コードHEAD `80e629b0a0e59fa3d000475a5e21b51684f5dc3b`、base `f08006d0b5d595bfc9d5ec4b2d3fdda0d89a5539`。controllerの全体検証は1561 passed（698.23秒、ラッパー699.11秒）、27 shell suites（88.91秒）、layout/diff成功、Gitleaks検出なし。隔離した修正後HEADの関連検証は124 passed（4.80秒）。実サービス・実モデルを用いたテストなし。
+
+- 自己レビュー: `reviews/usaturn/create-reso-world/#439-feat-issue-356-loop-reconcile/gpt-6.1-sol-commit-80e629b0a0e59fa3d000475a5e21b51684f5dc3b.md` と対応するfindings。
+- 修正の確認: 同review_dirの `verified/80e629b0a0e5.fix-check.json` と `.statement-candidates.json`。136候補の判定・主張9件・全変更ファイルを保存。
+- 工程/予約: `verified/c3a989996a6a.planning.json`。run_rolesの出力は `/workspaces/reso-world/tmp/agents/review-fix-planning-pr439.tuok7ffo/self-role-run/`。
+- ログ/反証/状態比較: 同セッションの `cycle-1-check-*.log`、`fix-proof-*.json`、`state-proof-*.json`、`fix-guard-detection.log`。既存の失敗証拠は上書きしていない。
+
+この段階の結論は1（修正して既存PRへpush）で、マージ済みとはしない。Spec/Planはissue-to-prの実行委任に従いdraftを維持し、内容承認は記録しない。記録だけを追記する本commitの後、次サイクルの指定3モデルのレビューとfinalize.pyによる最終化へ進む。

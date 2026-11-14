@@ -62,11 +62,11 @@
 
 **テストの要否:** S（誤ったPR/証拠の成功報告・上書き・履歴の喪失・信頼境界を防ぐ）。新規 fixture はこのテスト内に閉じ、conftest.py は変更しない。L の argparse/構文/文言固定テストは恒久追加しない。unprotected_changes は loop 層の受け取りを既存成功ケース1件で確認し、他層の全組合せは増やさない。
 
-- [ ] **Step 1: RED** 新規 reconcile の成功対照＋以下の独立した守りを代表テストで固定する: finalize/ID/PR所属/author/body/HEAD/record/times の不整合→4・未作成、lock/不適格run→3、既存証拠不一致→4・bytes不変、同一再実行→bytes不変、statusの元記録改変→4、finish abort日時とmerged3値、MERGED再開comment_id。正常記録には日本語と複数行・末尾改行を使う。新規未実装で失敗することを同期実行し理由を記録する。
-- [ ] **Step 2: 実装** Specの設計1〜4に従う。単一コメントのraw応答から日時/user/所属を読み、PR APIから任意merged_atを取る。対象IDの一覧所属を先に確認し、単一取得404も4。コメント本文を正規化しない。先行記録の照合にtrusted_loginを渡す。exclusive公開、既存結果検証、aborted_atをfinish --abortで初回だけ保存（hold()は変更しない）。元ファイルを書き換えずstatusの論理結果だけを切り替える。spec_commit許容の既存cycle_endは変更しない。
-- [ ] **Step 3: GREEN** `uv run --locked pytest .agents/skills/pr-review-fix-loop/tests .agents/skills/review-fix-planning/tests/test_finalize.py -q` を同期実行し全成功を確認する。fake gh/一時Gitで実CLIの成功/コメント不一致/HEAD不一致/既存証拠4ケースも実行し結果を報告する（pytest内で実CLIを呼ぶ同じS代表テストでもよい）。
-- [ ] **Step 4: 文書** records.md に証拠の形/冪等/abort日時/status/旧runと別spec_commit HEADの非対応、herdr_pane labelを --issue-numberありなら `<repo>:#<Issue番号>`（--issue-repositoryのrepo）、無ければ `PR#<番号>` と例を追加。SKILL.md は止まったときのreconcileコマンドと読取専用・不一致時停止を追加する。controllerが実施するスキル適用の基準シナリオ（元SKILLではマージ後abortに確定手順がなく、変更後は証拠を渡して照合できる）に合わせる。ほかの手順を再設計しない。
-- [ ] **Step 5: Commit** 指定パスのみstage、`git diff --check`、`git commit -m "feat: reconcile merged aborted review loops without changing evidence"`。自己レビューと所要時間・RED/GREEN・実CLI結果・懸念を返す。
+- [x] **Step 1: RED** 新規 reconcile の成功対照＋以下の独立した守りを代表テストで固定する: finalize/ID/PR所属/author/body/HEAD/record/times の不整合→4・未作成、lock/不適格run→3、既存証拠不一致→4・bytes不変、同一再実行→bytes不変、statusの元記録改変→4、finish abort日時とmerged3値、MERGED再開comment_id。正常記録には日本語と複数行・末尾改行を使う。新規未実装で失敗することを同期実行し理由を記録する。
+- [x] **Step 2: 実装** Specの設計1〜4に従う。単一コメントのraw応答から日時/user/所属を読み、PR APIから任意merged_atを取る。対象IDの一覧所属を先に確認し、単一取得404も4。コメント本文を正規化しない。先行記録の照合にtrusted_loginを渡す。exclusive公開、既存結果検証、aborted_atをfinish --abortで初回だけ保存（hold()は変更しない）。元ファイルを書き換えずstatusの論理結果だけを切り替える。spec_commit許容の既存cycle_endは変更しない。
+- [x] **Step 3: GREEN** `uv run --locked pytest .agents/skills/pr-review-fix-loop/tests .agents/skills/review-fix-planning/tests/test_finalize.py -q` を同期実行し全成功を確認する。fake gh/一時Gitで実CLIの成功/コメント不一致/HEAD不一致/既存証拠4ケースも実行し結果を報告する（pytest内で実CLIを呼ぶ同じS代表テストでもよい）。
+- [x] **Step 4: 文書** records.md に証拠の形/冪等/abort日時/status/旧runと別spec_commit HEADの非対応、herdr_pane labelを --issue-numberありなら `<repo>:#<Issue番号>`（--issue-repositoryのrepo）、無ければ `PR#<番号>` と例を追加。SKILL.md は止まったときのreconcileコマンドと読取専用・不一致時停止を追加する。controllerが実施するスキル適用の基準シナリオ（元SKILLではマージ後abortに確定手順がなく、変更後は証拠を渡して照合できる）に合わせる。ほかの手順を再設計しない。
+- [x] **Step 5: Commit** 指定パスのみstage、`git diff --check`、`git commit -m "feat: reconcile merged aborted review loops without changing evidence"`。自己レビューと所要時間・RED/GREEN・実CLI結果・懸念を返す。
 
 ### Task 2: 終端診断と祖先 fd 固定
 
@@ -76,10 +76,10 @@
 
 **テストの要否:** S（成功/本文を失敗と誤分類、出力外・機密を読む危険）。Dは既存パラメータケースの拡張にし、同じguardの別path/全組合せは増やさない。通常ログと本物エラーフィールドの陽性対照を残す。
 
-- [ ] **Step 1: RED** 成功ログのUnauthorizedがunknown、失敗の同じstderrはauthentication。is_errorのtool_result/result本文/無関係JSON欄の偽HTTP401はunknown、error系message/error.messageとretry.finalErrorは従来の原因。reportedのみの失敗はresponse_extractionにならない。os.openの境界で祖先をsymlinkへ差替え、出力外の認証文字列を読まない（not_regular_file）と通常読取対照。既存CLAUDE_OVERLOADEDのresult-only期待をunknownへ直し、修正前の失敗を記録する。
-- [ ] **Step 2: 実装** Spec設計5〜6に従い、JSON全体でなく安全なCLIエラー欄だけを抽出する。pi最終errorMessage/retry.finalError/prose=True/既存の認証優先と承認拒否根拠を維持。successfulはattempt.stateを使う。ログは字句上のoutput所属とsensitiveを検査し、rootから各祖先をO_NOFOLLOW/dir_fdで開き最後のfdまで全経路を閉じる。ENOTDIR/ELOOPはnot_regular_file。読取上限とpartialの既存意味は維持する。
-- [ ] **Step 3: GREEN** `uv run --locked pytest .agents/skills/pr-review-fix-loop/tests .agents/skills/review-fix-planning/tests/test_finalize.py -q` 全成功。既存prose/retry/approval/秘密非保存も含む。Task 1のテストを削除・弱化しない。
-- [ ] **Step 4: 文書・Commit** records.md 4.1を成功はunknown、安全な欄だけ、result/content非分類、祖先fdと分類に追従。`git diff --check`、指定3パスのみcommit: `git commit -m "fix: classify only failed attempts and pin log directory descriptors"`。自己レビューと時間・RED/GREEN・懸念を返す。
+- [x] **Step 1: RED** 成功ログのUnauthorizedがunknown、失敗の同じstderrはauthentication。is_errorのtool_result/result本文/無関係JSON欄の偽HTTP401はunknown、error系message/error.messageとretry.finalErrorは従来の原因。reportedのみの失敗はresponse_extractionにならない。os.openの境界で祖先をsymlinkへ差替え、出力外の認証文字列を読まない（not_regular_file）と通常読取対照。既存CLAUDE_OVERLOADEDのresult-only期待をunknownへ直し、修正前の失敗を記録する。
+- [x] **Step 2: 実装** Spec設計5〜6に従い、JSON全体でなく安全なCLIエラー欄だけを抽出する。pi最終errorMessage/retry.finalError/prose=True/既存の認証優先と承認拒否根拠を維持。successfulはattempt.stateを使う。ログは字句上のoutput所属とsensitiveを検査し、rootから各祖先をO_NOFOLLOW/dir_fdで開き最後のfdまで全経路を閉じる。ENOTDIR/ELOOPはnot_regular_file。読取上限とpartialの既存意味は維持する。
+- [x] **Step 3: GREEN** `uv run --locked pytest .agents/skills/pr-review-fix-loop/tests .agents/skills/review-fix-planning/tests/test_finalize.py -q` 全成功。既存prose/retry/approval/秘密非保存も含む。Task 1のテストを削除・弱化しない。
+- [x] **Step 4: 文書・Commit** records.md 4.1を成功はunknown、安全な欄だけ、result/content非分類、祖先fdと分類に追従。`git diff --check`、指定3パスのみcommit: `git commit -m "fix: classify only failed attempts and pin log directory descriptors"`。自己レビューと時間・RED/GREEN・懸念を返す。
 
 ## 統合・公開工程（controller）
 
@@ -111,3 +111,9 @@
 ## Self-review
 
 Spec1〜4→Task1、5〜6→Task2、編集禁止→Global Constraintsと各Files、全受入→同一本文/統合工程に対応済み。2Taskの共有fileは直列、interfacesの名前は既存型に一致。F/L/Dテストの新設は要求していない。Review Focusの5件は担当TaskのREDに含めた。
+
+## 実行記録（draft・内容承認なし）
+
+- Task1/Task2とTaskごとのレビュー修正を完了。PR #439、第1サイクルでCLI assistant.errorの回帰を確認し、指定Qwenの2回の修正を経て80e629b0で検証した。
+- 全体1561 pytest、27 shell、layout/diff、Gitleaks成功。自己レビューの予約は1回、PR全体自己レビューとfix-checkの両役割をcontrollerが完遂。追加の機能修正なし。非致命的なstatus応答形とD重複はskipとして開示する。
+- 設計/採否/経路と実測は同じSpecの「PR #439 レビュー修正・サイクル1」を参照。公開・次サイクル・finalizeは継続中。360分の上限は2026-11-14 10:12 JSTで延長しない。
