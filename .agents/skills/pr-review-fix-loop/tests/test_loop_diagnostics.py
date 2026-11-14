@@ -851,6 +851,7 @@ def test_claude_approval_evidence_survives_cleanup(loop: Any, env: Any, case: st
     cycle = loop.load_cycles(run_dir)[-1]
     (attempt,) = read_diagnostic(loop, rejected["diagnostic_file"]).attempts
     assert (attempt.state, attempt.cause, attempt.exit_code) == ("awaiting_approval", "approval", 0)
+    assert attempt.unavailable == {}
     assert attempt.approval is not None
     assert (
         attempt.approval.source,
@@ -876,6 +877,126 @@ def test_claude_approval_evidence_survives_cleanup(loop: Any, env: Any, case: st
         "awaiting_approval",
         0,
     )
+
+
+RATE_LIMIT_SENTENCE = "API Error: 429 rate limit exceeded\n利用上限に達しました"
+CONNECTION_STDERR = "Error: connect ECONNREFUSED 127.0.0.1:443\n"
+
+
+@pytest.mark.parametrize(
+    ("denial", "failed", "assistant_error", "stderr", "exit_code", "expected"),
+    [
+        pytest.param(
+            True, True, True, "", 1, ("awaiting_approval", "rate_limit", "other", True), id="denial-rate-limit"
+        ),
+        pytest.param(
+            True,
+            True,
+            False,
+            CONNECTION_STDERR,
+            1,
+            ("awaiting_approval", "connection", "other", True),
+            id="denial-connection",
+        ),
+        pytest.param(
+            False, True, True, "", 1, ("response_failed", "rate_limit", None, None), id="no-denial-rate-limit"
+        ),
+        pytest.param(
+            True,
+            False,
+            False,
+            CONNECTION_STDERR,
+            0,
+            ("awaiting_approval", "approval", "success", False),
+            id="denial-success-noise",
+        ),
+        # Issue #388 の再現入力の形: 失敗の文が terminal result の result 本文にだけある。本文は #356 により分類に使わない
+        pytest.param(
+            True, True, False, "", 1, ("awaiting_approval", "approval", "other", True), id="denial-result-only"
+        ),
+    ],
+)
+def test_claude_approval_evidence_keeps_the_terminal_failure_cause(
+    loop: Any,
+    env: Any,
+    denial: bool,
+    failed: bool,
+    assistant_error: bool,
+    stderr: str,
+    exit_code: int,
+    expected: tuple[str, str, str | None, bool | None],
+) -> None:
+    # 承認拒否と別の失敗が同じ試行にあるとき、失敗で終わった試行は CLI が報告した原因を残し、拒否を成功にしない（#388）。
+    # 失敗で終わっていない試行（成功 terminal・終了コード 0）は、stderr の雑音があっても承認のまま
+    secret = "fixture-" + uuid.uuid4().hex
+    run_dir = started_cycle(loop, env)
+    events: list[dict[str, object]] = []
+    if assistant_error:
+        events.append(
+            {
+                "type": "assistant",
+                "error": "rate_limit",
+                "message": {"role": "assistant", "content": [{"type": "text", "text": RATE_LIMIT_SENTENCE}]},
+            }
+        )
+    events.append(
+        {
+            "type": "result",
+            "subtype": "error_during_execution" if failed else "success",
+            "is_error": failed,
+            "result": RATE_LIMIT_SENTENCE if failed else '{"status": "success"}',
+            "permission_denials": [{"tool_name": "Bash", "tool_input": {"command": secret}}] if denial else [],
+            "session_id": "fixture-session",
+        }
+    )
+    adapter = ClaudeNDJSONReviewers(
+        {
+            "beta": {
+                "stdout": "".join(json.dumps(event) + "\n" for event in events),
+                "stderr": stderr,
+                "exit": exit_code,
+            }
+        },
+        env.reviewers({"alpha": "success"}),
+    )
+
+    reviewed = loop.review(run_dir, github=env.github, adapter_loader=adapter, tmp_root=env.tmp_root)
+
+    assert [entry["agent"] for entry in reviewed["accepted"]] == ["alpha"]
+    (rejected,) = reviewed["rejected"]
+    assert (rejected["agent"], rejected["rejected_stage"], rejected["diagnostic_error"]) == (
+        "beta",
+        "runner",
+        None,
+    )
+    (attempt,) = read_diagnostic(loop, rejected["diagnostic_file"]).attempts
+    state, cause, subtype, is_error = expected
+    assert (attempt.state, attempt.cause, attempt.exit_code, attempt.stop_confirmed) == (
+        state,
+        cause,
+        exit_code,
+        True,
+    )
+    assert attempt.unavailable == {}
+    if subtype is None:
+        assert attempt.approval is None
+    else:
+        assert attempt.approval is not None
+        assert (
+            attempt.approval.source,
+            attempt.approval.terminal_subtype,
+            attempt.approval.is_error,
+            attempt.approval.permission_denials,
+            attempt.approval.denial_count,
+            attempt.approval.diagnostic_sources,
+        ) == ("permission_denials", subtype, is_error, True, 1, [])
+    run = loop.load_run(run_dir)
+    assert [resource.state for resource in run.resources] == ["removed"]
+    assert not Path(run.resources[0].path).exists()
+    saved = saved_text(env.review_dir)
+    for text in (secret, "429 rate limit exceeded", "利用上限に達しました"):
+        assert text not in saved
+        assert json.dumps(text)[1:-1] not in saved
 
 
 def test_claude_authentication_priority_keeps_approval_evidence(loop: Any, env: Any) -> None:

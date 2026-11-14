@@ -289,7 +289,8 @@ class ApprovalDiagnostic(StrictModel):
 
     ``source`` は判定に使った経路、``diagnostic_sources`` はテキスト経路の照合先。terminal の
     subtype は固定値に正規化し、``is_error`` と拒否件数は型を厳密に確かめる。許可していない
-    キー・値は保存せず、根拠が不正なら ``approval`` 自体を付けない。
+    キー・値は保存せず、根拠が不正なら ``approval`` 自体を付けない。根拠があっても ``cause`` が
+    ``approval`` とは限らず、``diagnose_attempt`` の規則で、認証や失敗で終わった試行のログの原因が根拠と併存する。
     """
 
     source: ApprovalSource
@@ -2084,7 +2085,11 @@ def diagnose_attempt(attempt: Attempt, output_dir: Path, *, runtime: str | None)
     ``runtime`` は担当の設定のランタイム（分からなければ None）。JSON のイベントの stream でない stdout は照合の文にしない。
     成功した試行（``state == "success"``）は分類の文を空にして unknown のままにする（``reported_state`` は根拠にしない）。
     承認待ちの payload はモデルの回答ではなく adapter が実際に使った判定根拠なので、検証済みの項目だけを
-    ``approval`` に保存し、原因の分類では既存の認証優先を維持する。
+    ``approval`` に保存する。承認根拠がある試行の ``cause`` は、認証ならログの報告があれば常に残す。それ以外は、
+    失敗で終わった試行（``is_error`` が true、terminal の subtype が success でない、終了コードが 0 でない
+    （None を含む）のどれか）で、ログが既知の原因を報告したときだけ残し、``unknown``・``response_extraction`` や
+    失敗で終わっていない試行（成功 terminal・終了コード 0）は ``approval`` にする。複数の失敗が報告されていれば
+    パターンの照合の順で最初に当たったものを選び、どれが最後に試行を終わらせたかは判定しない。
     """
     unavailable: dict[DiagnosticItem, Unavailable] = {}
     stdout, missing = read_log_tail(attempt.stdout_path, attempt, output_dir)
@@ -2105,10 +2110,13 @@ def diagnose_attempt(attempt: Attempt, output_dir: Path, *, runtime: str | None)
     )
     approval = approval_evidence(attempt, runtime)
     cause = classify_cause(text, attempt, reported=reported, observed=observed)
-    # 承認根拠は保存するが、既存の分類が認証を示すときは認証を優先する。認証の復旧に必要な診断を、
-    # 同じ文に含まれる承認要求の根拠で上書きしない。
+    # 承認根拠は保存する。cause は、認証（復旧に必要なので常に優先）か、失敗で終わった試行のログが報告した既知の原因
+    # （unknown・response_extraction 以外）だけを残し、ほかは approval にする。成功 terminal・終了コード 0 の試行は、
+    # stderr の雑音や回復済みのエラーの語で別の原因を選ばない。
     if approval is not None and cause != "authentication":
-        cause = "approval"
+        failed = approval.is_error is True or approval.terminal_subtype != "success" or attempt.exit_code != 0
+        if not failed or cause in ("unknown", "response_extraction"):
+            cause = "approval"
     return AttemptDiagnostic(
         agent_id=attempt.agent_id,
         state=attempt.state,
