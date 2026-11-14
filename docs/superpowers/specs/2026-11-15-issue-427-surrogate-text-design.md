@@ -91,6 +91,11 @@
   - S2（minor）: #426 の `planner.model` の対照が受け入れ基準から落ち、重複行の期待が無い → 採用。実入力に加え、D4 に期待（重複を許容）を書いた
   - S3（minor）: 型検査の入口が無い → 採用。検証を README の入口に限り、ruff は参考の実行にした
 
+- Spec レビュー 2 回目（再レビュー）: 同じ担当・helper。`review_id` `f501f20cb45147feabba3d06fd0e8de3`、reviewed の Spec SHA-256 `925d5e0cbabbe09f4355556bee6dae044f4a287d97c9c04275bb2091b68d6b6c`（commit `cdc509be2c2433b56ca7a47033d0ad6b75ce8321`）、`identity` は `opencode-go` / `deepseek-v4.1-flash`（effort `max`）、`elapsed_seconds` 1481.1、`outside_changes` なし。指摘 3 件
+  - S1（important）: 未知のキーにサロゲートがあると、問題文の stderr への出力で落ちる → 不採用。Python の `sys.stderr` の既定の `errors` は `backslashreplace` で、実際に `{"x\ud800y": 1}` を `validate` に渡すと `x\ud800y: unknown key` を出して終了コード 65、トレースバックは無かった（base の worktree で確認）。D2 の「キーは既知の名前に限られる」は値の検査の範囲の説明で、キーの拒否は既存の `_keys()` で働く
+  - S2（minor）: README の `run-tests.bash` が検証から落ちている → 採用
+  - S3（minor）: lint の成否が完了条件になっていない → 採用（形を変えて）。base で既に失敗するので、新しい指摘が増えないことを必須にした
+
 ## 変更するもの
 
 - `.agents/scripts/review_records.py`: UTF-8 エンコードの検査の共通の関数を足し、`_text()` と `_pattern()` から呼ぶ。`_text()` では文字列であることを確かめた後、空白・制御文字の検査とは独立に調べる（ほかの問題があっても、この問題を落とさない）
@@ -112,7 +117,7 @@
 - 検証:
   - 上の振る舞いを、Issue の再現手順の 3 コマンドで欄ごとに 1 回ずつ確かめる（結果は PR 本文に書く）
   - 投稿経路は、一時的なスクリプト（コミットしない）で 1 回確かめる
-  - `uv run --locked pytest .agents/scripts/tests/test_review_records.py` と、関係するテスト（`.agents/skills/review-fix-planning/tests/test_upsert_pr_comment.py`）、README の「テスト」の `uv run pytest tests/skills .agents/skills .agents/scripts tools` と `bash scripts/check-layout.sh` が通る。リポジトリには lint・型検査の入口が無い（`pyproject.toml` の dev 依存は pytest と pyyaml だけ）ので、参考として `uvx ruff check` と `uvx ruff format --check` を変更したファイルにだけ実行し、型検査は行わない（Spec レビュー S3）
+  - `uv run --locked pytest .agents/scripts/tests/test_review_records.py` と、関係するテスト（`.agents/skills/review-fix-planning/tests/test_upsert_pr_comment.py`）、README の「テスト」の `uv run pytest tests/skills .agents/skills .agents/scripts tools` と `bash scripts/check-layout.sh` が通る。README の `bash .devcontainer/run-tests.bash` も通す（`worlds/<name>` のテストは追跡対象外なので対象外。Spec レビュー 2 回目の S2）。リポジトリには lint・型検査の入口が無い（`pyproject.toml` の dev 依存は pytest と pyyaml だけ）。lint は `uvx ruff check` と `uvx ruff format --check` を変更した 2 ファイルに実行し、base（`273ace19`）の同じ 2 ファイルの結果と比べて、新しい指摘・format の差分が増えないことを必須にする。base の時点で既存の指摘（`FLY002` 2 件）と format の差分があり、終了コード 0 は変更の範囲外の修正を要するので求めない。型検査は行わない（Spec レビュー S3、2 回目の S3）
 
 ## 対象外
 
