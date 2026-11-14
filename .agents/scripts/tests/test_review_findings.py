@@ -868,6 +868,56 @@ def test_provenance_stats_leaves_adoption_unevaluated_when_identifiers_are_unobs
 
 
 @pytest.mark.parametrize(
+    "seat_changes,expected_adopted,expected_mismatches",
+    [
+        ({}, [1, 1], 0),
+        ({"model": "SWE-2 Max"}, [None, 1], 1),
+        ({"model": "SWE-2 Max", "run_id": "unknown", "request_id": "unknown"}, [None, 1], 1),
+        (
+            {"model": "SWE-2 Max", "session_id": "unknown", "run_id": "unknown", "request_id": "unknown"},
+            [None, 1],
+            0,
+        ),
+    ],
+    ids=["exact-match", "model-spelling", "partially-unknown", "candidate-all-unknown"],
+)
+def test_provenance_stats_reports_identity_mismatch_instead_of_counting_zero(
+    seat_changes: dict[str, str], expected_adopted: list[int | None], expected_mismatches: int
+) -> None:
+    """S: model の表記差を採用 0 と黙って数えると、終了コード 0 のままもっともらしい集計になり誤りに気付けない（#440）。
+
+    不一致は未評価（null）と診断で報告し、対照（識別情報の完全一致）は正しく採用 1 と数える。
+    """
+    text = json.dumps(document_v2(), ensure_ascii=False)
+    document = json.loads(text.replace("claude-opus-5-5", "SWE-2-Max").replace("claude-code", "devin"))
+    record = v2_adoption_round(document)
+    seat = record["seats"][0]
+    for key, value in seat_changes.items():
+        if key == "model":
+            seat["model"] = value
+        else:
+            seat["provenance"][key] = value
+    records = review_findings._records.fold([(123, review_findings._records.validate_record(record))])
+    result = review_findings.stats([document], records)["provenance"]
+    finders = [entry for entry in result["executions"] if entry["stage"] == "find"]
+    assert [entry["adopted"] for entry in finders] == expected_adopted
+    diagnostics = result["diagnostics"]
+    assert len(diagnostics) == expected_mismatches
+    if not expected_mismatches:
+        return
+    (diagnostic,) = diagnostics
+    assert diagnostic["kind"] == "identity_mismatch"
+    assert diagnostic["source"] == f"SWE-2-Max#H-1@{HEAD[:12]}"
+    assert diagnostic["review_file"] == "SWE-2-Max.md"
+    assert diagnostic["actor"] == review_findings._actor_identity(document["inputs"][0], "find")
+    assert diagnostic["recorded"] == [review_findings._actor_identity(seat, "find")]
+    assert diagnostic["actor"]["model"] == "SWE-2-Max"
+    assert diagnostic["recorded"][0]["model"] == "SWE-2 Max"
+    for key in ("session_id", "run_id", "request_id"):
+        assert diagnostic["recorded"][0]["provenance"][key] == seat["provenance"][key]
+
+
+@pytest.mark.parametrize(
     "bad",
     [
         {"schema": "review-records/v999", "decisions": []},
