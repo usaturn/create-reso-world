@@ -83,6 +83,7 @@ Pi の `pi-model-name` スキルの同梱スクリプト `print-pi-model.sh` は
 - helper: `review_spec.py`（外部担当）。担当: 明示値 `pi_alibaba_qwen4-max_max`、fallback なし。`actual_agent` も `pi_alibaba_qwen4-max_max`、`identity` は model `qwen4-max-preview`・provider `alibaba`・effort `max`
 - `review_dir`: `/workspaces/reso-world/tmp/agents/issue-429.j_exehwb/2026-11-15-issue-429-pi-model-id-design.spec-review/review-1`、`review_id`: `1d160cda82cd49658b1d1447c8acb8ea`、reviewed の Spec SHA-256: `caa612fe62add38c36f25fc29ef870393f1ea37a57d64b9a8ff33c6b34028562`、`elapsed_seconds`: 620、`outside_changes`: なし、`unprotected_changes`: ほかの作業の worktree 7 件（このレビューの対象外。記録だけ）
 - 採否: S1（important、予約の既存挙動の確認が検証に無い）を採用し、検証と受け入れ基準に追記。S2（minor、`.pi/APPEND_SYSTEM.md` のペルソナ節の凍結）を採用し、D4 の編集の境界と検証に追記
+- 再レビュー（2 回目）: 同じ担当（`actual_agent` `pi_alibaba_qwen4-max_max`、model `qwen4-max-preview`）。`review_dir`: `/workspaces/reso-world/tmp/agents/issue-429.j_exehwb/2026-11-15-issue-429-pi-model-id-design.spec-review/review-2`、`review_id`: `bafc75a9e360410bab3a8dcec968b5cf`、reviewed の Spec SHA-256: `9a227c8bde359b3d1e3c78422f5169d86dc23b3d805ef10f2f4050550a3e579b`、`elapsed_seconds`: 324、指摘 0 件、`outside_changes`: なし、`unprotected_changes`: ほかの作業の worktree 6 件（記録だけ）
 
 ## 変更するファイル
 
