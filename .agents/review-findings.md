@@ -934,7 +934,7 @@ uv run --no-project python "$TOPLEVEL/.agents/scripts/review_findings.py" stats 
 
 発見の時間は accuracy.find_seconds と inputs.waiting_seconds、確認の時間は verifier の timing、工程の時間は planning.activities を使う。同じ PR・reviewed_head・実担当・stage の planning があるときは、その明示時間を優先し、確認済みの一覧の時間を二重加算しない。activities の再試行は全て加算する。既存 stages は集計しない。集計の時間は担当別の経過時間であり、並行実行の実時間とは異なる。
 
-採否は records.pr が一致する資料だけに適用し、source のファイルと検出 HEAD も照合する。v2 records では、実際に Fix を決めた履歴のサイクルの seats の識別情報まで一致させ、後の resolved や inherited のセッションへ採用を移さない。records が無い、別PRしか無い、または必要な識別情報が欠ける行・その集計では adopted は null（未評価）とする。候補の参照だけを持つ既存 v1 records は PR と参照で照合する。v1 文書の追加識別情報は unknown として出力し、入力を推測で書き換えない。records の不正な構造も終了コード65で報告する。
+採否は records.pr が一致する資料だけに適用し、source のファイルと検出 HEAD も照合する。v2 records では、実際に Fix を決めた履歴のサイクルの seats の識別情報まで一致させ、後の resolved や inherited のセッションへ採用を移さない。実行識別子（`session_id`・`run_id`・`request_id`）が矛盾しない（それぞれ同じ値か片方が `unknown`。部分的な unknown を含む）のに他の識別情報が違う場合は、採用を推定せず adopted を null（未評価）にし、不一致を `provenance.diagnostics` に出す。`diagnostics` の各要素は `{"kind": "identity_mismatch", "source": <指摘の参照>, "review_file": <レビューファイル名>, "actor": <確認済みの一覧の識別情報>, "recorded": [<実行識別子が矛盾しなかった seats の識別情報>...]}` で、識別情報は `model`・`runtime`・`provenance` の形、観測値を書き換えずにそのまま入れる。同じ内容の要素は 1 回だけ、決まった順に並べ、不一致が無ければ空配列。records が無い、別PRしか無い、または必要な識別情報が欠ける行・その集計では adopted は null（未評価）とする。候補の参照だけを持つ既存 v1 records は PR と参照で照合する。v1 文書の追加識別情報は unknown として出力し、入力を推測で書き換えない。records の不正な構造も終了コード65で報告する。
 
 ### 7.2 実行記録の集計（`runs`）
 

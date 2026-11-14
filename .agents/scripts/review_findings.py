@@ -2202,20 +2202,39 @@ def _check_stats_records(value: object) -> None:
     problems.raise_if_any()
 
 
-def _adoption_matches(records: Mapping[str, Any], source: str, actor: Mapping[str, Any]) -> bool | None:
+_EXECUTION_ID_KEYS = ("session_id", "run_id", "request_id")
+
+
+def _execution_ids_unobserved(provenance: Mapping[str, Any]) -> bool:
+    return all(provenance.get(key) == "unknown" for key in _EXECUTION_ID_KEYS)
+
+
+def _execution_ids_conflict(actor: Mapping[str, Any], candidate: Mapping[str, Any]) -> bool:
+    """実行識別子のどれかが、両方で観測されて（unknown でなく）値が食い違えば True。"""
+    return any(
+        actor.get(key) != "unknown" and candidate.get(key) != "unknown" and actor.get(key) != candidate.get(key)
+        for key in _EXECUTION_ID_KEYS
+    )
+
+
+def _adoption_matches(
+    records: Mapping[str, Any], source: str, actor: Mapping[str, Any]
+) -> tuple[bool | None, list[dict[str, Any]]]:
     """v2の判断に実担当が残っていれば、同じ参照の別セッションへ採用を転用しない。
 
+    戻り値は照合の結果と、不一致の診断に使う候補の識別情報（実行識別子が矛盾しないもの）。
     actor 自身の実行識別子がすべて未観測（unknown）なら、実担当を同一実行と確認できないため None とする。
     同じサイクルのレビュアーが actor と同じ実行識別子で観測されていれば一致し、その判断を後のサイクルに採用する。
+    完全一致がなく実行識別子が矛盾しない候補があれば、採用を推定せず None とし、その候補を診断のために返す。
     一致するレビュアーがなく、あとに未観測のレビュアーが残る場合だけ、実担当の特定を保留して None とする。
     """
     if records.get("schema") != _records.PROVENANCE_SCHEMA_ID:
-        return True
+        return True, []
     provenance = actor.get("provenance")
     if provenance is None:
-        return None
-    if all(provenance.get(key) == "unknown" for key in ("session_id", "run_id", "request_id")):
-        return None
+        return None, []
+    if _execution_ids_unobserved(provenance):
+        return None, []
     file = reference_key(source).split("#", 1)[0]
     adoption_rounds = {
         event.get("round")
@@ -2232,21 +2251,27 @@ def _adoption_matches(records: Mapping[str, Any], source: str, actor: Mapping[st
         if seat.get("review_file") == file and "provenance" in seat
     ]
     if not candidates:
-        return None
+        return None, []
     identity = _actor_identity(actor, "find")
     if identity in candidates:
-        return True
-    if any(
-        all(candidate["provenance"].get(key) == "unknown" for key in ("session_id", "run_id", "request_id"))
+        return True, []
+    compatible = [
+        candidate
         for candidate in candidates
-    ):
-        return None
-    return False
+        if not _execution_ids_unobserved(candidate["provenance"])
+        and not _execution_ids_conflict(provenance, candidate["provenance"])
+    ]
+    if compatible:
+        return None, compatible
+    if any(_execution_ids_unobserved(candidate["provenance"]) for candidate in candidates):
+        return None, []
+    return False, []
 
 
 def _provenance_stats(documents: Sequence[Mapping[str, Any]], records: Mapping[str, Any] | None) -> dict[str, Any]:
     """発見の採用実績と、実担当に帰属する時間・手戻りを集計する。"""
     entries: dict[str, dict[str, Any]] = {}
+    diagnostics: list[dict[str, Any]] = []
     adopted_refs: set[str] = set()
     for decision in (records or {}).get("decisions", []):
         if decision.get("state") == "fix" or any(item.get("state") == "fix" for item in decision.get("history", [])):
@@ -2316,17 +2341,28 @@ def _provenance_stats(documents: Sequence[Mapping[str, Any]], records: Mapping[s
                 key, entry = reporter
                 token = (key, pr_key, reference_key(source))
                 if (
-                    entry["adopted"] is not None
+                    records is not None
+                    and records.get("pr") == document["pr"]
                     and reference_key(source) in adopted_refs
-                    and token not in counted_adoptions
                 ):
                     original = inputs.get(_review_file_of(source), {})
-                    matched = _adoption_matches(cast(Mapping[str, Any], records), source, original)
-                    if matched is None:
-                        entry["adopted"] = None
-                    elif matched:
-                        counted_adoptions.add(token)
-                        entry["adopted"] += 1
+                    matched, mismatched = _adoption_matches(cast(Mapping[str, Any], records), source, original)
+                    if mismatched:
+                        diagnostics.append(
+                            {
+                                "kind": "identity_mismatch",
+                                "source": reference_key(source),
+                                "review_file": _review_file_of(source),
+                                "actor": _actor_identity(original, "find"),
+                                "recorded": mismatched,
+                            }
+                        )
+                    if entry["adopted"] is not None and token not in counted_adoptions:
+                        if matched is None:
+                            entry["adopted"] = None
+                        elif matched:
+                            counted_adoptions.add(token)
+                            entry["adopted"] += 1
                 if (
                     finding.get("verdict") == "confirmed"
                     and finding.get("late_detection") is True
@@ -2372,9 +2408,11 @@ def _provenance_stats(documents: Sequence[Mapping[str, Any]], records: Mapping[s
                         total[metric] = None
                     else:
                         total[metric] += entry[metric]
+    diagnostics_by_content = {json.dumps(item, sort_keys=True, ensure_ascii=False): item for item in diagnostics}
     return {
         "executions": rows,
         "by_dimension": {axis: [groups[label] for label in sorted(groups)] for axis, groups in sorted(axes.items())},
+        "diagnostics": [diagnostics_by_content[key] for key in sorted(diagnostics_by_content)],
     }
 
 
