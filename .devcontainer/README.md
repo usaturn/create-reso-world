@@ -1497,7 +1497,7 @@ Alibaba では `MAAS_ANTHROPIC_TOKEN` を引き継ぐ。
 「Alibaba Cloud Model Studio の Token Plan で Claude Code を起動する（#397）」と
 「Ollama Cloud の DeepSeek-V4.1-Flash-1017（ccdol）」にある。
 
-AW の雛形には Antigravity CLI（runtime `agy`）の agent があるが、本リポジトリには追加しない。#365 の範囲は新しい agent の追加を含まず、agent_runner に agy adapter が無い（agy CLI 自体は「導入ツール一覧」にある）。
+usaturn/agent-workspace の雛形には Antigravity CLI（runtime `agy`）の agent があるが、本リポジトリには追加しない。#365 の範囲は新しい agent の追加を含まず、agent_runner に agy adapter が無い（agy CLI 自体は「導入ツール一覧」にある）。
 
 `pi_alibaba_qwen4-max_max` は `piaq` を呼ぶ。通常のシェルでは `MAAS_ANTHROPIC_TOKEN` を export して使う。
 子に渡るのは `env` に挙げた変数だけなので、`with_keys.py` を通さない場合、runner を起動したシェルに key が無ければ届かない。

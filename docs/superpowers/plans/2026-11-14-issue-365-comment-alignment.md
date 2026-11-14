@@ -10,7 +10,7 @@
 
 **Spec:** `docs/superpowers/specs/2026-11-14-issue-365-comment-alignment-design.md`（commit `3c3e9854`）
 
-- 状態: `draft`
+- 状態: `completed`
 - CODE_ROOT / DOC_ROOT: `/workspaces/reso-world/.worktrees/issue-365-comment-alignment`
 - branch: `feat/issue-365-comment-alignment`、base `bcff80ed97c70b31cb30afd3dfb6f9264594efb2`
 - 実行方式: `superpowers:executing-plans`（inline、self）。理由: implement は既定の self、同じファイルの逐次コメント編集で 1–2 Task の小変更（issue-to-pr 4 章の表）。
@@ -58,7 +58,7 @@
 
 **テストの要否: 不要。** コメント文面は F（固定値）。値・並びは変えず、S の duplicate_model・env 境界は既存テストが守る。代わりの検証: 雛形単独・実効の check/list、AW との diff 比較、既存 pytest（Task 2）。
 
-- [ ] **Step 1: TOML のコメント 9 ブロックを AW 原文を基本に置き換える（値・並び・schema_version は触れない）**
+- [x] **Step 1: TOML のコメント 9 ブロックを AW 原文を基本に置き換える（値・並び・schema_version は触れない）**
 
   各ブロックの確定文面（AW の Issue 参照は `usaturn/agent-workspace#N`。Ollama / alibaba / piaq のコメントと全 agent / role / workflow の値・並びは変更しない）:
 
@@ -111,27 +111,29 @@
   # その回だけ変えるときは /issue-to-pr <Issue> --implement <agent> と書く（fallback は保つ）。
   # agents は 1 つだけ。
   ```
-  fix.assignments（2 行保持。参照 `#116` だけ `usaturn/agent-workspace#116` に直す）:
+  fix.assignments（2 行保持。参照 `#116` だけ `usaturn/create-reso-world#116` に直す）:
   ```
-  # review-fix-planning の run_roles.py が使う担当（usaturn/agent-workspace#116 のボードの D-13）。self は司令塔が自分で実行する。
+  # review-fix-planning の run_roles.py が使う担当（usaturn/create-reso-world#116 のボードの D-13）。self は司令塔が自分で実行する。
   # self-review・fix-check には codex の担当を割り当てられない（run_roles.py が起動の前に拒否する）。
   ```
 
-- [ ] **Step 2: README を 2 か所更新する（命名表・既定割当・Ollama 節は変えない）**
+  > 訂正（2026-11-14）: 上の fix.assignments の参照は `usaturn/create-reso-world#116` が正しい。PR #437 の実行時は `usaturn/agent-workspace#116` と記載しており、本訂正で直した。
+
+- [x] **Step 2: README を 2 か所更新する（命名表・既定割当・Ollama 節は変えない）**
 
   - 移行節の「この環境の既存個人設定は旧名の参照だけを持つため、マージ後に利用者による移行が必要であり、本変更では触らない。」を次に置換:
     「この環境の個人設定は #365 残作業の着手時（2026-11-14）に旧名の参照・定義が無いことを確認済み（agent-runner-personal.toml の例コメントのみ）で、移行は不要。」
   - 命名節の「このほか、Claude Code 用の exec を呼ぶ雛形 agent として…」の段落（「Ollama Cloud の DeepSeek-V4.1-Flash-1017（ccdol）」にある。で終わる段落）の後に次を追記:
-    「AW の雛形には Antigravity CLI（runtime `agy`）の agent があるが、本リポジトリには追加しない。#365 の範囲は新しい agent の追加を含まず、agent_runner に agy adapter が無い（agy CLI 自体は「導入ツール一覧」にある）。」
+    「usaturn/agent-workspace の雛形には Antigravity CLI（runtime `agy`）の agent があるが、本リポジトリには追加しない。#365 の範囲は新しい agent の追加を含まず、agent_runner に agy adapter が無い（agy CLI 自体は「導入ツール一覧」にある）。」
 
-- [ ] **Step 3: 検証（worktree を cwd に。実 API は呼ばない）**
+- [x] **Step 3: 検証（worktree を cwd に。実 API は呼ばない）**
 
   - 雛形単独: `uv run --project . --locked python -m tools.agent_runner --template .devcontainer/agent-runner.toml --config "$SESSION/empty-config.toml" check` と `list`。Expected: exit 0、duplicate_model 無し。
   - 実効: `uv run --project . --locked python -m tools.agent_runner --template .devcontainer/agent-runner.toml check` と `list`（実個人設定を重ねる。読み取り専用）。Expected: exit 0。
   - AW 現行との `diff -u "$SESSION/aw-agent-runner.toml"` で、残る差分がすべて Spec の「揃えない差分」であることを確認する。
   - `git diff -- .devcontainer/agent-runner.toml` で、変更がコメント行のみ（値・並び・schema_version 不変）であることを確認する。
 
-- [ ] **Step 4: commit（明示パスのみ stage）**
+- [x] **Step 4: commit（明示パスのみ stage）**
 
   ```bash
   git add .devcontainer/agent-runner.toml .devcontainer/README.md
@@ -146,7 +148,7 @@
 
 **テストの要否: 不要**（既存テストの実行）。
 
-- [ ] **Step 1: 回帰検証（worktree cwd）**
+- [x] **Step 1: 回帰検証（worktree cwd）**
 
   - `uv run pytest tools/agent_runner/tests` → Expected: 305 passed / exit 0。
   - `bash .devcontainer/test-install-beforehand.bash` → Expected: PASS / exit 0。
@@ -154,11 +156,11 @@
   - `git diff --check` → Expected: exit 0。
   - `git grep -n -E 'claude-code_opus_default|pi_openai-codex_gpt6-sol_max' -- .devcontainer/agent-runner.toml .agents/skills/review-fix-planning/` → Expected: 空（README の履歴・移行節は許可）。
 
-- [ ] **Step 2: 最終のブランチ全体レビュー（別 context。`--merge` が無いので省かない）**
+- [x] **Step 2: 最終のブランチ全体レビュー（別 context。`--merge` が無いので省かない）**
 
   受け入れ基準・防御範囲を渡し、値・並び・schema_version 不変、コメントの AW 整合、揃えない差分の理由、README 更新、agy 不在を確認させる。追加実行は具体的な不具合の疑いに対する絞った確認に限る。
 
-- [ ] **Step 3: 検証の記録**
+- [x] **Step 3: 検証の記録**
 
   最終検証の HEAD・clean 状態・各コマンドの argv と終了コード・ログの完全パスを SESSION に記録する。
 
