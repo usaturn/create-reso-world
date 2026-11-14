@@ -63,6 +63,7 @@ PR レビューの通常の完了処理（`review_run.complete`）は、保存�
 - 1 回目: runner（helper `review_spec.py`）。担当は `--spec-review pi_alibaba_qwen4-max_max`（明示値）、`fallback` は `[]`、`requested_agent`・`actual_agent` とも `pi_alibaba_qwen4-max_max`、`identity` は provider `alibaba`・model `qwen4-max-preview`・effort `max`。`review_id` `23bcfd176a0b4dc88d50f9573f1ca64c`、reviewed の Spec SHA-256 `5b4f5b1eedd59d60e4c06511f0fdc727b6a3c35146b4c1009d1ce3903f8e60ab`、`elapsed_seconds` 877.7、`outside_changes` なし。`unprotected_changes` は他の作業の worktree 8 件（この run の対象外）。レビュー記録は SESSION（`tmp/agents/issue-387.263ahgq0/`）の下に置き、commit しない。
 - S1（important・採用）: complete 経路の拒否テストに親 worktree の HEAD 不一致を使うと、save の `verify_state` が先に拒否して cleanup に到達しない。テスト 2 と受け入れ基準の実入力を、submodule 内のローカル commit（親 HEAD は固定 commit のまま）に改めた。
 - S2（minor・採用）: D1 のトレードオフで、保持したセッションが strict 退役で自動回収されるように読める記述を、同じ検査で保持され続け、利用者が作業を退避・削除してから回収すると改めた。
+- 2 回目（再レビュー）: 同じ担当・runner。`review_id` `0a5269fa9ab94ce8ab235953edf27e68`、reviewed の Spec SHA-256 `f2ce2abdb37453315b981bee5a1f1966f3b19cf798caf105d559084c589c13f9`、`elapsed_seconds` 427.2、`identity` は 1 回目と同じ、`outside_changes` なし。指摘 0 件。
 
 ## テスト
 
