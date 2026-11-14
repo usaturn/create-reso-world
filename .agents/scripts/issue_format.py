@@ -838,6 +838,10 @@ def missing_labels(rules: Rules, existing: Iterable[str]) -> list[LabelDefinitio
 # ---------------------------------------------------------------------------
 
 _BOARD_START = re.compile(r"^<!-- planning-parallel-issues:(?P<name>.+):start -->$")
+# board-ledger 形式（定義は .agents/issue-format.md の「planning-parallel-issues のマーカー」）
+_LEGACY_BOARD = re.compile(r"^<!-- planning-parallel-issues board: (?P<key>\S+) -->$")
+_LEGACY_LEDGER_START = "<!-- board-ledger:start -->"
+_LEGACY_LEDGER_END = "<!-- board-ledger:end -->"
 _COMMENT_OPEN = re.compile(r"^ {0,3}<!--")
 # wrap_original が囲みの前後に付ける行（summary に < と > は入らない）
 _DETAILS_OPEN = re.compile(r"^<details><summary>[^<>]*</summary>$")
@@ -910,6 +914,27 @@ def _original_wrapper_numbers(lines: list[ScannedLine], fences: list[_Fence]) ->
     return numbers
 
 
+def _managed_range_end(lines: list[ScannedLine], index: int) -> int | None:
+    """``index`` の行が管理対象の範囲の開始なら、その終わりの行の添字を返す。開始でない、または終わりが無ければ None。
+
+    開始は、``:board:`` 形式の ``<!-- planning-parallel-issues:<名前>:start -->`` か、``board-ledger`` 形式の
+    ボード行（直後の行が ``<!-- board-ledger:start -->`` のものだけ）である。終わりは、開始より後の、コードブロックの外の
+    最初の同じ種類の終わりの行。
+    """
+    line = lines[index]
+    started = _BOARD_START.match(line.text)
+    if started is not None:
+        end_text = f"<!-- planning-parallel-issues:{started['name']}:end -->"
+    elif _LEGACY_BOARD.fullmatch(line.text) is not None:
+        following = lines[index + 1] if index + 1 < len(lines) else None
+        if following is None or following.in_fence or following.text != _LEGACY_LEDGER_START:
+            return None
+        end_text = _LEGACY_LEDGER_END
+    else:
+        return None
+    return next((i for i in range(index + 1, len(lines)) if not lines[i].in_fence and lines[i].text == end_text), None)
+
+
 def _excluded_numbers(lines: list[ScannedLine], fences: list[_Fence]) -> set[int]:
     """節の検査で読まない行の番号。
 
@@ -918,7 +943,8 @@ def _excluded_numbers(lines: list[ScannedLine], fences: list[_Fence]) -> set[int
       （無ければ本文の終わりまで）。GitHub の画面に出ないので、中の見出しは数えない。機械可読ブロックの範囲も
       この規則に含まれる（壊れたブロックも、表示されない範囲を除く）
     - コードブロックの外の ``planning-parallel-issues`` の管理対象の範囲（入れ子は外側だけ。対応する終わりが
-      無い開始は範囲にしない）
+      無い開始は範囲にしない）。``:board:`` 形式の開始から終わりまでと、``board-ledger`` 形式のボード行
+      （直後の行が ``<!-- board-ledger:start -->``）から最初の ``<!-- board-ledger:end -->`` までを読まない
     """
     excluded = {line.number for line in lines if line.in_fence}
     excluded |= _original_wrapper_numbers(lines, fences)
@@ -934,17 +960,12 @@ def _excluded_numbers(lines: list[ScannedLine], fences: list[_Fence]) -> set[int
     index = 0
     while index < len(lines):
         line = lines[index]
-        started = None if line.in_fence else _BOARD_START.match(line.text)
-        if started is not None:
-            end_text = f"<!-- planning-parallel-issues:{started['name']}:end -->"
-            end_index = next(
-                (i for i in range(index + 1, len(lines)) if not lines[i].in_fence and lines[i].text == end_text), None
-            )
-            if end_index is not None:
-                excluded.update(range(line.number, lines[end_index].number + 1))
-                index = end_index + 1
-                continue
-        index += 1
+        end_index = None if line.in_fence else _managed_range_end(lines, index)
+        if end_index is not None:
+            excluded.update(range(line.number, lines[end_index].number + 1))
+            index = end_index + 1
+        else:
+            index += 1
     return excluded
 
 

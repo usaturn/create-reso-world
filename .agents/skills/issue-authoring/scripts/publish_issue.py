@@ -48,7 +48,9 @@ REFERENCE = re.compile(r"(?:(?P<repo>[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za
 SHA256 = re.compile(r"[0-9a-fA-F]{64}")
 PIN_LINE = re.compile(r'^readonly GITLEAKS_VERSION="(?P<version>[^"]+)"$', re.MULTILINE)
 COMMENT_OPEN = re.compile(r"^ {0,3}<!--")
-KNOWN_COMMENT = re.compile(r"^ {0,3}<!-- (?:issue-format:|planning-parallel-issues(?::| board:))")
+KNOWN_COMMENT = re.compile(
+    r"^ {0,3}<!-- (?:issue-format:|planning-parallel-issues(?::| board:)|board-ledger:(?:start|end) -->)"
+)
 OK_STATUSES = frozenset({"draft_saved", "published", "already_published"})
 NO_PARENT = "No parent issue found"
 URL_PARTS = 4
@@ -609,7 +611,8 @@ def _compose(body: str, metadata: BaseModel | None) -> str:
 
 
 def _warnings(body: str) -> tuple[DraftWarning, ...]:
-    """コードブロックの外の行頭の ``<!--``。issue-format のブロックと planning-parallel-issues のマーカーは除く。"""
+    """コードブロックの外の行頭の ``<!--``。issue-format のブロックと planning-parallel-issues のマーカー
+    （``board-ledger`` 形式の ``<!-- board-ledger:start -->``・``<!-- board-ledger:end -->`` を含む）は除く。"""
     return tuple(
         DraftWarning(code="hidden_comment", target="body", line=line.number)
         for line in fmt.scan_lines(body)

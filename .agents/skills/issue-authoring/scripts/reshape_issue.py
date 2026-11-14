@@ -49,6 +49,11 @@ _CHILD_MARKER = re.compile(
     r"^<!-- planning-parallel-issues board:(?P<board>\S+) child:(?P<child>\S+) parent:(?P<parent>[1-9][0-9]*) -->$"
 )
 _PLANNING_LINE = re.compile(r"^ {0,3}<!-- planning-parallel-issues")
+# board-ledger 形式（親ボードの旧形式のマーカー）: ボード行 → ledger の開始 → ledger の終わり
+_LEGACY_BOARD = re.compile(r"^<!-- planning-parallel-issues board: (?P<key>\S+) -->$")
+_LEGACY_LEDGER_START = "<!-- board-ledger:start -->"
+_LEGACY_LEDGER_END = "<!-- board-ledger:end -->"
+_LEGACY_LEDGER_LINE = re.compile(r"^ {0,3}<!-- board-ledger:")
 _COMMENT_OPEN = re.compile(r"^ {0,3}<!--")
 _DETAILS_OPEN = re.compile(r"^<details><summary>(?P<summary>[^<>]*)</summary>$")
 _ARCHIVE_FENCE = re.compile(r"(?:`{3,}|~{3,})[ \t]*(?P<info>.*?)[ \t]*$")
@@ -335,14 +340,37 @@ def _find_archive(body: str, lines: Sequence[Any]) -> tuple[str, str, _Span, str
     return wrapper, payload, span, info
 
 
+def _legacy_ledger_end(lines: Sequence[Any], board_index: int, key: str, covered: set[int]) -> int:
+    """board-ledger 形式の範囲の終わりの行の添字。範囲の中の子マーカー以外のマーカー行と、閉じの無い範囲は拒否する。"""
+    following = lines[board_index + 1] if board_index + 1 < len(lines) else None
+    if following is None or following.in_fence or following.text != _LEGACY_LEDGER_START:
+        raise ReshapeError(f"the board line on line {board_index + 1} is not followed by a board-ledger start marker")
+    for index in range(board_index + 2, len(lines)):
+        line = lines[index]
+        if line.in_fence or index in covered:
+            continue
+        if line.text == _LEGACY_LEDGER_END:
+            return index
+        if _CHILD_MARKER.fullmatch(line.text):
+            continue
+        if _PLANNING_LINE.match(line.text) or _LEGACY_LEDGER_LINE.match(line.text):
+            raise ReshapeError(f"an unexpected marker is present inside the board-ledger range on line {index + 1}")
+    raise ReshapeError(f"the board-ledger range of the board {key} is not closed")
+
+
 def _managed_ranges(body: str, lines: Sequence[Any]) -> tuple[list[tuple[ManagedKind, str, _Span]], str | None]:
-    """管理対象の範囲を、外側の範囲だけ返す。囲み・HTML コメントの中のマーカーは無視する。"""
+    """管理対象の範囲を、外側の範囲だけ返す。囲み・HTML コメントの中のマーカーは無視する。
+
+    ``:board:`` 形式（開始と終わりの 2 行）に加え、``board-ledger`` 形式（ボード行・``board-ledger:start``・
+    ``board-ledger:end`` の範囲 1 つ）を、kind ``ledger``・name ``legacy-ledger:<key>`` の管理対象として読む。
+    """
     stack: list[tuple[ManagedKind, str, int, str]] = []
     ranges: list[tuple[ManagedKind, str, _Span]] = []
     covered = _comment_covered(lines)
     child_marker: str | None = None
+    resume = 0
     for index, line in enumerate(lines):
-        if line.in_fence or index in covered:
+        if index < resume or line.in_fence or index in covered:
             continue
         child = _CHILD_MARKER.fullmatch(line.text)
         if child is not None:
@@ -354,6 +382,13 @@ def _managed_ranges(body: str, lines: Sequence[Any]) -> tuple[list[tuple[Managed
                 raise ReshapeError("the child marker is not on the first line")
             child_marker = line.text
             ranges.append(("child", "child", _line_span(body, lines, index, index)))
+            continue
+        legacy = _LEGACY_BOARD.fullmatch(line.text)
+        if legacy is not None and not stack:
+            key = legacy["key"]
+            end_index = _legacy_ledger_end(lines, index, key, covered)
+            ranges.append(("ledger", f"legacy-ledger:{key}", _line_span(body, lines, index, end_index)))
+            resume = end_index + 1
             continue
         started = _BOARD_START.fullmatch(line.text)
         ended = _BOARD_END.fullmatch(line.text)
@@ -373,6 +408,8 @@ def _managed_ranges(body: str, lines: Sequence[Any]) -> tuple[list[tuple[Managed
             continue
         if _PLANNING_LINE.match(line.text):
             raise ReshapeError(f"an unknown planning-parallel-issues marker is present on line {index + 1}")
+        if _LEGACY_LEDGER_LINE.match(line.text):
+            raise ReshapeError(f"an unexpected board-ledger marker is present on line {index + 1}")
     if stack:
         raise ReshapeError(f"the managed range {stack[-1][1]} is not closed")
     ranges.sort(key=lambda item: item[2].start)
