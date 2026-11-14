@@ -241,3 +241,14 @@ stdout の失敗イベントは JSON 全体を分類に流さない。error/fail
 - ログ/反証/状態比較: 同セッションの `cycle-1-check-*.log`、`fix-proof-*.json`、`state-proof-*.json`、`fix-guard-detection.log`。既存の失敗証拠は上書きしていない。
 
 この段階の結論は1（修正して既存PRへpush）で、マージ済みとはしない。Spec/Planはissue-to-prの実行委任に従いdraftを維持し、内容承認は記録しない。記録だけを追記する本commitの後、次サイクルの指定3モデルのレビューとfinalize.pyによる最終化へ進む。
+
+## PR #439 レビュー修正・サイクル2（最終化前の記録）
+
+- reviewed HEAD: `8137d274698d5e594ebe9e9e80a5d3747dc088d7`、base: `f08006d0b5d595bfc9d5ec4b2d3fdda0d89a5539`（HEADの祖先）。PR全体のUpdateレビューは指定3担当すべてaccepted・active0、rejected/retainedなし。requested=actualはそれぞれdevin_swe2_max / pi_opencode-go_deepseek4-flash_max / claude-code_opus_xhigh。
+- 観測モデル/runtime: SWE-2 Max / devin、deepseek-v4.1-flash / pi、claude-opus-5-5 / claude-code。保存レビューの実測は約406.06秒 / 502.05秒 / 389.74秒。SWE候補/timingのモデル表記はSWE-2-Maxでheader/runnerと差があるため、同一表記と推定補完せず保存した。
+- 解消済み1 / 対応する0 / 対応しない3。M-1はcontrollerの固定HEADの13入力で認証/上限へ回復し、本文・tool/user/result・成功/prose/retry/piの対照と全管理ツリー不変を確認した。Opusも元M-1をResolvedへ移した。新規の役割起動・実装修正・自己レビューは行わない。
+- 古い80e629b0のself-reviewは現行レビューの代用にせず、activeの3件を現行HEADで再確認した。status応答形と再abort/本文guardのD重複は事実として残り、前回のskipを引き継ぐ。SWEのDecidedにあるIDと「lock中」の表記は実際の判断記録と異なるため、元記録の4ID/sourceを基準に照合し、誤記を新しい指摘や判断の根拠にしなかった。
+- 確認済み一覧 `verified/8137d274698d.json` と要約、工程の記録 `verified/8137d274698d.planning.json` を同じreview_dirへ保存。4入力、既知3件confirmed、新しい現行3レビューの候補0、coverage.remainingなし。controllerの確認は974秒。前回のコメント: https://github.com/usaturn/create-reso-world/pull/439#issuecomment-6868216028 。
+- controllerがこのHEADの隔離worktreeで凍結した4検証を再実行: **1561 passed（706.03秒）**、27 shell suites（93.47秒）、layout/diff成功。完全なargv/HEAD/base/終了コードは `checks-cycle-2.json`、ログはreview-fixセッションの `cycle-2-check-*.log`。コードは80e629b0と同一で、実サービス/実モデルのテストは行わない。
+- 結論2として、検証したHEADにこのSpecの記録だけの直接の子commitを載せ、状況コメントを投稿してからfinalize.pyで最終化する。この記録時点ではマージ・Issue更新は未実施。baseの前進・HEAD差・取得失敗を成功にしない。
+- Spec/Planはissue-to-prの実行委任の規則でdraftを維持する（内容承認なし）。本PRはRefs #356であり、マージ後の子closeと親ボードのsnapshot更新は調整役が行う。判断は前回と同じ基準で、公開済み/自己レビュー済みcommitは書き換えない。
