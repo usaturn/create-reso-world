@@ -583,6 +583,9 @@ def test_complete_keeps_a_submodule_local_commit(
     assert Path(completed["review_file"]).is_file()
     assert Path(completed["findings_file"]).is_file()
     assert completed["retained_paths"]["worktree"] == result["worktree"]
+    # 拒否では pinned PR ref も消さない。検査が delete_pinned_ref の後に移ると、セッションは残っても ref だけが無言で失われる。
+    pr_ref = completed["retained_paths"]["pr_ref"]
+    assert git(source, "for-each-ref", "--format=%(objectname)", pr_ref) == head
     assert worktree.is_dir()
     assert Path(result["state_file"]).is_file()
     assert git(submodule, "rev-parse", "HEAD") == local_head
