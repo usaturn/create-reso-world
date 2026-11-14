@@ -70,7 +70,7 @@ Claude Code の試行に構造化された承認拒否（`permission_denials`）
 | # | 選択した案 | 検討した別案 | 選択理由 | 委任指示または停止条件 |
 | --- | --- | --- | --- | --- |
 | 1 | 単一の `cause` の優先順を変える（原因を特定できたときはその原因、できないときだけ `approval`） | (b) `cause` は `approval` のまま、`terminal_cause` のような欄を足す。(c) adapter が terminal result の本文を分類して payload に入れる | `cause` は records.md で「試行を終わらせた失敗の原因」と定義され、`approval` 欄が承認根拠を別に保存しているので、優先順の変更だけで両方が残る。既存の認証優先も同じ規則の特別な場合になる。(b) は同じ情報を 2 か所に持ち、診断の形を変える。(c) は #356 の「本文を分類しない」に反する | Issue の「エージェントに任せる事項」（単一 cause の優先順変更か別フィールドの併存かの設計）による委任 |
-| 2 | 試験の入力は、CLI が付ける失敗の欄（assistant の `error`、stderr）で 429・接続失敗を表し、`result` 本文にも複数行・非 ASCII の文を置く | Issue の再現どおり `result` 本文だけに書く | Issue の起票後にマージした #356 が `result` 本文の分類を禁じたため、本文だけでは denial の有無によらず `unknown` になり、本題（denial による上書き）を確かめられない。Issue の目的（回収後に原因を区別できる）と対照（denial なしは今と同じ）は保たれ、`result` 本文の扱いは #356 の決定に従う。AGENTS.md の「RED で前提が異なると判明した場合は、仕様の意味を保つ最小修正を記録して継続する」に当たると判断した | 委任（推奨案で進める）。設計レビューでこの読み替えが仕様の意味を変えると判断されたら止まる |
+| 2 | 試験の入力は、CLI が付ける失敗の欄（assistant の `error`、stderr）で 429・接続失敗を表し、`result` 本文にも複数行・非 ASCII の文を置く | Issue の再現どおり `result` 本文だけに書く | Issue の起票後にマージした #356 が `result` 本文の分類を禁じたため、本文だけでは denial の有無によらず `unknown` になり、本題（denial による上書き）を確かめられない。Issue の目的（回収後に原因を区別できる）と対照（denial なしは今と同じ）は保たれ、`result` 本文の扱いは #356 の決定に従う。AGENTS.md の「RED で前提が異なると判明した場合は、仕様の意味を保つ最小修正を記録して継続する」に当たると判断した | 設計レビュー D1（blocking・ask_user）を受けて、利用者が 2026-11-15 に決定: 「推奨案で進めてください。今後、止めることは許しません。PRを出してマージをするところまで実行してください。」。対象は CLI の失敗の欄（assistant の `error`、stderr など #356 が分類に使う欄）に根拠がある試行に限る。`result` 本文だけに書いた失敗は #356 の本文非分類に従い、denial の有無によらず識別しない（Issue の受け入れ対象の限定として利用者が承認） |
 | 3 | 承認で置き換える `cause` は `unknown` と `response_extraction` だけ | `unknown` だけ | `response_extraction` は「失敗の報告が無いのに結果を得られなかった」の推測で、承認待ちの試行では承認拒否のほうが確かな説明になる。今の実装では `awaiting_approval` は `_EXTRACTION_STATES` に無く出ないが、条件として明示する | 委任 |
 | 4 | 新しいテストは 3 ケースの parametrize 1 つ、4 つ目は既存テストに確認を 1 行足す | 4 ケースすべてを新しいテストにする | 4 つ目は既存テストと同じ入力・同じ流れで、「テストの採用基準」の D に当たる | 委任 |
 | 5 | records.md 4.1 の `attempts[]` に `approval` を足し、`cause` との関係を書く | 列挙漏れを直さない | Issue の完了条件（採用した設計と一致する形で説明する）。`approval` 欄を書かずに関係は説明できない | Issue の完了条件 |
@@ -83,11 +83,18 @@ Claude Code の試行に構造化された承認拒否（`permission_denials`）
 - Spec レビュー: `--spec-review claude-code_sonnet_xhigh`（利用者の指定）、`fallback` 空。builder check は行わない
 - PR 修正ループ（`check-options`）: `max_cycles` 3（既定の適用）、`assign.implement` = `claude-code_sonnet_xhigh`、`assign.inspect` = `devin_swe2_max`・`pi_opencode-go_deepseek4-flash_max`・`pi_openai-codex_gpt6-sol_xhigh`（利用者の指定）。`self-review`・`fix-check` は `self`（既定の適用）。`template` は `.devcontainer/agent-runner.toml`（既定）
 
+### 設計レビューの記録
+
+- 担当: `pi_openai-codex_gpt6-sol_xhigh`（利用者の明示、`fallback` 空）。`actual_agent` 同じ、`identity` は gpt-6.1-sol / openai-codex / xhigh。1 回、`elapsed_seconds` 約 151
+- `review_dir`: `/workspaces/reso-world/tmp/agents/issue-388.zzoas0k7/2026-11-15-issue-388-approval-terminal-cause-design.design-review/review-1`、`review_id` `029a5a28b3f949a78cd25f09f375daa5`、reviewed の Spec SHA-256 `e623233c4701ca41f731ff8ab87a7485635c3ece0afce59014edea28c270a622`
+- verdict `concerns`。D1（決定記録 2 の読み替えが Issue の対応範囲を狭める、blocking・ask_user）は `needs_judgment` として記録し、helper の `next: stop` で一度止めた。その後の利用者の決定で、決定記録 2 のとおり対象を限定して続ける
+- `outside_changes` なし。`unprotected_changes` は別の作業の worktree 8 件（この run の対象外）
+
 ## 対象外
 
 - 承認拒否を成功として扱うこと、認証優先の解除
 - `tool_input`・コマンド全文・任意メッセージ・実資格情報・生ログの追加保存
-- terminal result の `result` 本文を分類に戻すこと（#356 の決定の変更）
+- terminal result の `result` 本文を分類に戻すこと（#356 の決定の変更）。`result` 本文だけに書いた失敗の識別（利用者の決定で対象外）
 - adapter・runner の状態の判定の変更
 - 過去の本番試行でこの組合せが起きた、または特定の頻度で起きるという断定
 - #357 の収集の保存点・#443 の範囲の変更
