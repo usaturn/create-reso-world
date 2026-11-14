@@ -746,6 +746,53 @@ def test_collect_records_reports_surrogate_model_with_comment_id() -> None:
     assert any(problem.startswith("comment 12345: planner.model:") for problem in problems)
 
 
+def test_collect_records_rejects_unencodable_text_at_both_gates() -> None:
+    # An accepted record crashes later output, and fold fails without the comment ID.
+    record = round_one()
+    del record["commit"]
+    reason = "external: 外部の障害で停止 🚧"
+    record.update(outcome="stopped", stop_reason=reason)
+    record["seats"] = []
+    body = status_body(review_records.validate_record(record))
+    broken = body.replace(
+        json.dumps(reason, ensure_ascii=False), json.dumps("external: x\ud800y")
+    )
+    problems = problems_of(
+        lambda: review_records.collect_records([comment(12345, broken)])
+    )
+    assert "comment 12345: stop_reason: must be UTF-8 encodable" in problems
+
+    literal = copy.deepcopy(record)
+    literal["stop_reason"] = "external: x\\ud800y"
+    checked = review_records.validate_record(literal)
+    records, ignored = review_records.collect_records(
+        [comment(12345, status_body(checked))]
+    )
+    assert records == [(12345, checked)]
+    assert ignored == []
+
+    carry = round_one()
+    carry["outcome"] = "no_fix_needed"
+    del carry["commit"]
+    carry["decisions"][0] = decision(
+        "Grok-4.7#M-1@25e76f6c513f",
+        "skip",
+        carry_over={"issue": "https://github.com/usaturn/repo/issues/1"},
+    )
+    body = status_body(review_records.validate_record(carry))
+    broken = body.replace(
+        '"https://github.com/usaturn/repo/issues/1"',
+        json.dumps("https://github.com/x\ud800y/repo/issues/1"),
+    )
+    problems = problems_of(
+        lambda: review_records.collect_records([comment(12346, broken)])
+    )
+    assert (
+        "comment 12346: decisions[0].carry_over.issue: must be UTF-8 encodable"
+        in problems
+    )
+
+
 def test_collect_records_rejects_markers_that_disagree_with_the_record() -> None:
     body = status_body(review_records.validate_record(round_one()))
     lines = body.split("\n")

@@ -172,14 +172,26 @@ def _is_control(char: str) -> bool:
     return code < 32 or 127 <= code < 160
 
 
+def _encodable(value: str) -> bool:
+    """UTF-8 にエンコードできるか。単一サロゲートはエンコードできない。"""
+    try:
+        value.encode("utf-8")
+    except UnicodeEncodeError:
+        return False
+    return True
+
+
 def _text(problems: _Problems, where: str, value: object, *, free: bool) -> None:
     """文字列の欄を検査する。
 
     free が偽なら 1 行の欄、真なら自由記述の欄（改行とタブを許す）。
+    UTF-8 にエンコードできない文字列（単一サロゲート）は拒否する。
     """
     if not isinstance(value, str):
         problems.add(where, "must be a string")
         return
+    if not _encodable(value):
+        problems.add(where, "must be UTF-8 encodable")
     if not value.strip():
         problems.add(where, "must not be blank")
         return
@@ -193,7 +205,11 @@ def _text(problems: _Problems, where: str, value: object, *, free: bool) -> None
 
 
 def _pattern(problems: _Problems, where: str, value: object, pattern: re.Pattern[str], description: str) -> None:
-    if not isinstance(value, str) or pattern.fullmatch(value) is None:
+    if not isinstance(value, str):
+        problems.add(where, f"must be {description}")
+    elif not _encodable(value):
+        problems.add(where, "must be UTF-8 encodable")
+    elif pattern.fullmatch(value) is None:
         problems.add(where, f"must be {description}")
 
 
