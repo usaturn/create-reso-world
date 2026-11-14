@@ -2,7 +2,7 @@
 
 ## 管理・実行許可
 
-- 状態: `draft`（承認していない。下の実行指示は実行許可であり、内容の承認ではない）
+- 状態: `completed`（PR #451 のレビュー修正ループのサイクル 1 で修正不要と判定。下の実行指示は実行許可であり、内容の承認（`approved`）は記録しない）
 - Issue: https://github.com/usaturn/create-reso-world/issues/388
 - 利用者の指示（`/issue-to-pr` の引数）: `#388 --merge --design-review pi_openai-codex_gpt6-sol_xhigh --spec-review claude-code_sonnet_xhigh --implement claude-code_sonnet_xhigh --assign implement=claude-code_sonnet_xhigh --assign inspect=devin_swe2_max,pi_opencode-go_deepseek4-flash_max,pi_openai-codex_gpt6-sol_xhigh`
 - 許可された範囲: issue-to-pr の手順に従い、通常の設計判断を推奨案で決め、検証・commit・push・PR 作成まで進め、`--merge` により PR 修正ループ（pr-review-fix-loop）の `finalize.py` が修正不要と確かめたときだけマージする
@@ -122,3 +122,21 @@ PR 本文には、Issue の受け入れ条件の字句（`result` 本文だけ�
 - adapter・runner の状態の判定の変更
 - 過去の本番試行でこの組合せが起きた、または特定の頻度で起きるという断定
 - #357 の収集の保存点・#443 の範囲の変更
+
+## PR のレビュー（サイクル 1）
+
+- 対象: PR #451、HEAD `ffffb8479bcce07fda9e0f732ebc5c2c7e04ef6d`、base `da97a1987754dac0e41dad829d0cd247a6f84f77`（push の前に `273ace19` から前進し、rebase と再検証を済ませた）。planner `claude-opus-5-5`（claude-code）。loop の run `28cd62d6569a407dbb321f3ef4ba5f1d`
+- レビュアーの構成（すべてこのサイクルで再実行・Initial・Approve）:
+
+| レビューファイル | モデル | ランタイム | レビュー HEAD | 指摘 |
+| --- | --- | --- | --- | --- |
+| SWE-2-Max | SWE-2 Max | devin | `ffffb8479bcc` | 0 |
+| deepseek-v4.1-flash | deepseek-v4.1-flash | pi | `ffffb8479bcc` | 0 |
+| gpt-6.1-sol | gpt-6.1-sol | pi | `ffffb8479bcc` | 0 |
+
+- 確認済みの一覧: `reviews/usaturn/create-reso-world/#451-fix-issue-388-approval-terminal-cause/verified/ffffb8479bcc.json`（候補 0 件、coverage.remaining なし）
+- 分類: 解消済み 0 / 対応する 0 / 対応しない 0
+- 要件対応: 受け入れ基準の 5 ケース・認証優先・拒否を成功にしないこと・`unavailable == {}`・回収・秘密の非保存は新しいテストと既存テストで満たし、2 つの条件を外した版でテストが落ちることも確かめた。今回の修正は無い
+- 結論: 2（修正不要でマージ）。実行許可は issue-to-pr の `--merge`（Spec 冒頭）
+- 検証（HEAD `ffffb847` 単体。base `da97a198` はこの HEAD の祖先で一時 merge は不要）: `uv run --locked pytest tests/skills .agents/skills .agents/scripts tools -q` 0（1579 passed）、`bash .devcontainer/run-tests.bash` 0（27 test(s)）、`bash scripts/check-layout.sh` 0、`git diff --check 273ace19215430fa05042a512d63dc19e4e3a058...HEAD` 0
+- 自己レビュー: 修正が無いので実施していない（`run_roles.py` は起動していない）
