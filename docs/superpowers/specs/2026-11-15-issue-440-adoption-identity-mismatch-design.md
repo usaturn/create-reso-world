@@ -107,3 +107,12 @@ v1 の判断記録、records の無い集計、別 PR の records、検出 HEAD 
 - Issue の再現手順を 4 条件で実行し、戻り値・診断・件数を確かめる
 - README.md「テスト」のうち、変更に関係する `uv run pytest tests/skills .agents/skills .agents/scripts tools` と `bash scripts/check-layout.sh`
 - `uv run ruff check` と `uv run ruff format --check` を変更したファイルに実行する
+
+## レビュー記録
+
+### 設計レビュー（1 回目）
+
+- 実行: helper `review_design.py`（外部担当）。明示値 `--design-review pi_openai-codex_gpt6-sol_xhigh`、`fallback` なし。`actual_agent` は同じ、`identity` は `openai-codex` / `gpt-6.1-sol` / effort `xhigh`
+- `review_id`: `9b92dea11c294eeda7c5ea3f0b49c650`、reviewed の Spec SHA-256: `2990347cad57b1b87b24e116bdf56bca627d57c988636454348ff7820d7e1cf9`、所要 約 136 秒
+- 結果: `verdict: sound`、concerns 0 件、質問なし。`outside_changes` なし。`unprotected_changes` は他の作業の worktree 8 件（この run の対象外。記録だけ）
+- 採否: 指摘が無いので採否は空
