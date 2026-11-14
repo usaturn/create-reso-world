@@ -102,3 +102,11 @@
 - 全 pytest で今回の変更と無関係な時間依存の失敗が出た場合は、#415 の安定化後も残る負荷依存かを切り分ける。同じ失敗が再現するなら、対象テストと変更前の挙動を比較し、今回の範囲で直せるか判断する。直せない場合は停止して報告する。
 - `writes=true` の一時プローブが作れない場合は、先頭行が `role.writes` を参照しない実装であることをコードと差分で確認し、未実施の確認として報告する。
 - 予算を超える場合は、追加の反復を増やさず、未実施事項・残項目・必要な予算を記録して停止する。
+
+## 実施記録
+
+- ベースライン（変更前）: runner 305 passed、roles 18 passed、いずれも終了 0。
+- Task 1: TDD の順序にするため、Plan の Step 3（テストの assertion 追加）を先に実行した。RED は許可文の不在による assertion 失敗（1 failed、終了 1）。次に Step 2（runner.py の文言）を実装し、対象テスト 1 passed、runner 305 passed、roles 18 passed、`git diff --check` 終了 0 を確認した。
+- `writes=true` の一時プローブ: `writes=False` と `writes=True` の先頭行が同じで、許可・禁止の部分文字列を含むことを確認した（1 passed、終了 0）。プローブは `$SESSION/writes_true_probe.py` に置き、コミットしていない。
+- Task 1 の commit: `6776160e`。Spec は `4327e994`、Plan は `9ae0de67`。
+- 最終検証・ブランチ全体レビュー・PR・Issue 更新は Task 2 で記録する。

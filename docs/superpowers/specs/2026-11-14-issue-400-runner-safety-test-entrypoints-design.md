@@ -106,3 +106,7 @@ PR #399 のレビュー修正ループでは、inspect 担当が `.devcontainer/
 - main の `tools/agent_runner/runner.py` は未変更で、安全指示は旧文のまま（302〜305 行）。
 - 既存の F∩S テストは `tools/agent_runner/tests/test_runner.py` の `test_write_exceptions_follow_the_work_scope_lines`。`writes=false` の同一条先頭行を、write exceptions あり・なしで確認している。
 - 変更前のベースライン（2026-11-14、worktree のルート）: `uv run --project . --locked pytest tools/agent_runner -q` は 305 passed、終了 0。`uv run --project . --locked pytest .agents/skills/review-fix-planning/tests/test_run_roles.py -q` は 18 passed、終了 0。ログは `/workspaces/reso-world/tmp/agents/issue-400.2wum565u/logs/baseline.log`。
+- Task 1 の RED: `test_write_exceptions_follow_the_work_scope_lines` に許可・禁止の assertion を先に足し、許可文が無いため `assert "repository's test and verification entry points" in safety` で失敗することを確認した（1 failed、終了 1）。
+- Task 1 の GREEN: `runner.py` の先頭 1 行に許可文を連結した。対象テストは 1 passed、`tools/agent_runner` 全体は 305 passed、`test_run_roles.py` は 18 passed、`git diff --check` は終了 0。
+- `writes=true` の一時プローブ: `$SESSION/writes_true_probe.py` で `writes=False` と `writes=True` の先頭行が同じであること、`writes=True` の行が `writes=True: changes are permitted here` で始まること、許可・禁止の部分文字列を含むことを確認した（1 passed、終了 0）。worktree の rootdir を明示して実行し、親 checkout のコードを読まないようにした。プローブはコミットしない。
+- 実装の commit: `6776160e`（`tools/agent_runner/runner.py`・`tools/agent_runner/tests/test_runner.py`）。Spec は `4327e994`、Plan は `9ae0de67`。
