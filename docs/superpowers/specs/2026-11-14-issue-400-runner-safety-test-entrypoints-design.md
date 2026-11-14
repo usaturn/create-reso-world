@@ -2,7 +2,7 @@
 
 ## 管理・実行許可
 
-- 状態: `draft`（issue-to-pr による実行委任。内容の承認は得ていない）
+- 状態: `completed`（issue-to-pr の実行委任で実装し、PR #442 の PR 修正ループ サイクル 1 で修正不要を確認した。内容の承認は得ていない）
 - 対象: https://github.com/usaturn/create-reso-world/issues/400
 - 利用者指示（2026-11-14）: 「このIssueの残作業を実行してください。残作業が終わったらIssueを更新し、関連Issueも更新してください。このIssueは問題がなければ最後にクローズしてください。」
 - issue-to-pr の委任として、推奨案で設計し、検証・commit・push・PR 作成まで進む。`--merge` の指定は無いため、PR のマージは行わない。Issue の完了条件は「変更が main にマージされ、マージ後のレビュー修正 run 3 回で目標値を評価できる状態になる」であり、マージ前のクローズはこの条件を満たさない。クローズの扱いは最終報告で利用者に明示する。
@@ -112,3 +112,36 @@ PR #399 のレビュー修正ループでは、inspect 担当が `.devcontainer/
 - 実装の commit: `6776160e`（`tools/agent_runner/runner.py`・`tools/agent_runner/tests/test_runner.py`）。Spec は `4327e994`、Plan は `9ae0de67`。
 - 最終検証（HEAD `7cc48d96`、clean）: 全 pytest（`tests/skills .agents/skills .agents/scripts tools`）は 1561 passed、`bash scripts/check-layout.sh` は終了 0、runner 305 passed、`test_run_roles.py` 18 passed、`git diff --check` は終了 0。
 - ブランチ全体レビュー（`950186cd..7cc48d96`、読み取り専用の別 context、モデル opus）: Critical 0、Important 0、Minor 3、判定 Yes。Minor は任意の改善として Plan の実施記録と ledger に残し、今回は対応しない。レビュアーも runner 305 passed、roles 18 passed、review-verify 64 passed、diff check 0 を確認した。
+
+## レビュー修正（PR #442、サイクル 1）
+
+- 日付: 2026-11-14
+- レビュアーの構成:
+
+| レビューファイル | モデル | ランタイム | レビュー HEAD | Mode | このサイクルで再実行 | Merge recommendation |
+| --- | --- | --- | --- | --- | --- | --- |
+| `claude-opus-5-5.md` | claude-opus-5-5 | claude-code | `71a7521ad611` | Initial | はい | Approve |
+| `deepseek-v4.1-flash.md` | deepseek-v4.1-flash | pi | `71a7521ad611` | Initial | はい | Approve |
+| `SWE-2-Max.md` | SWE-2-Max | devin | `71a7521ad611` | Initial | はい | Approve |
+
+- planner: deepseek-v4.1-flash[1m]（claude-code）
+- 入力から外したファイル: なし（3 名とも現行 HEAD をレビュー）。`deepseek-v4.1-flash.md` は loop の runner 段階で rejected（response_failed）だが、保存されたレビュー成果は HEAD 一致のため入力に使った。
+- 前のサイクルの判断: 0 件（記録なし）
+- 分類: 解消済み 0 / 対応する 0 / 対応しない 1
+- 指摘:
+  - 対応する: なし
+  - 解消済み: なし
+  - 対応しない: `claude-opus-5-5#L-1@71a7521ad611`（Low、要設計判断）— pr-review-fix-loop のレビュアー依頼文で、runner の許可文（`.devcontainer/run-tests.bash`・`scripts/check-layout.sh` を実行してよい）と caller の禁止（レビューでは一括検証を再実行しない）が同じコマンドに並ぶ。許可は義務ではなく caller の禁止と両立し、Issue #400 の決定済み事項は優先関係を定めておらず、この PR の編集範囲（安全指示の文言と既存 F∩S テスト）にも含まれない。実在の構成でデータ消失・秘密漏れ・誤対象操作・CI 停止は確認できない。見直す条件: 実際のレビュー run で予算超過・レビュー失敗が観測されたとき、Issue #400 のマージ後評価で解釈の分かれる例が観測されたとき、または利用者が指定したとき
+- 論点: runner の一般的な許可と caller の個別の禁止の優先関係をどう扱うかは、#400 のマージ後の評価と、必要なら別の Issue で決める。
+- 要件対応: Issue #400 の受け入れ条件と PR 本文の約束は、上の「受け入れ基準」と「調査と検証の記録」で照合済み。今回の修正は無いため、新しい守る条件・影響経路の表は無い。共有条件の新規統合も無い。
+- 実行許可: PR 修正ループ（pr-review-fix-loop）の起動による完遂の委任。2026-11-14 に、利用者はサイクル 1 の後に「修正不要でマージ」を選んだ。
+- 実行した検証（専用 worktree `.worktrees/issue-400-test-entrypoints`、HEAD `71a7521a`）:
+  - `uv run --project . --locked pytest tools/agent_runner -q` → 305 passed、終了 0
+  - `uv run --project . --locked pytest .agents/skills/review-fix-planning/tests/test_run_roles.py -q` → 18 passed、終了 0
+  - `uv run --project . --locked pytest tests/skills .agents/skills .agents/scripts tools -q` → 1561 passed、終了 0
+  - `bash scripts/check-layout.sh` → PASS、終了 0
+  - `git diff --check` → 終了 0
+- 確認済みの一覧: `reviews/usaturn/create-reso-world/#442-feat-issue-400-test-entrypoints/verified/71a7521ad611.json`
+- 工程の記録: `reviews/usaturn/create-reso-world/#442-feat-issue-400-test-entrypoints/verified/71a7521ad611.planning.json`
+- 自己レビュー: 未実施（修正が無いため。結論 2 では自己レビューを行わない）
+- 結論: 2（修正不要としてマージ）。投稿した記録: PR #442 の状況コメント（round 1、review-records v2）。
