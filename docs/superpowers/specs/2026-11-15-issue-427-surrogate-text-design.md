@@ -2,7 +2,7 @@
 
 ## 管理・実行許可
 
-- 状態: `draft`
+- 状態: `completed`（PR #454 の PR 修正ループ 1 サイクル目で修正不要と確かめた。下の「結果」）
 - 対象: https://github.com/usaturn/create-reso-world/issues/427
 - 利用者の指示（2026-11-15、`/issue-to-pr` の引数）:
 
@@ -127,3 +127,11 @@
 - 過去の記録の一括移行・全走査
 - PR #426 のモデル名修正のやり直し
 - `review_records.py` 以外のスクリプトの文字列検査。`upsert_pr_comment.py` の記録の無いコメントの経路（`compose_body()`。`--model-name` と Markdown のファイルだけを使い、`review_records` の検証を通らない）も含む
+
+## 結果
+
+- 実装: commit `579bba311e80cab3ce0da5d33ae9da2398d09f5c`（Task 1、`pi_alibaba_qwen4-max_max` / `alibaba` の `qwen4-max-preview`、依頼 1 回・592.8 秒）。base の前進を 2 回追随し（`273ace19` → `da97a198` → `27d54681`）、PR #454 の head は `84f5fc3ff5ba41b32219226026a86ef64671e72a`
+- 検証（HEAD `84f5fc3f`、base `27d54681`、作業ツリーは clean）: `uv run --locked pytest tests/skills .agents/skills .agents/scripts tools -q` 終了 0（1580 passed）、`bash scripts/check-layout.sh` 終了 0、`bash .devcontainer/run-tests.bash` 終了 0（27 件）。受け入れ基準の 4 欄 × 3 コマンドは終了コード 65（欄名付き、`fold` は `comment 12345: ` 付き、トレースバックなし）、#426 の対照の `planner.model` は 65（同じ行が 2 回、D4 のとおり）、対照（日本語・絵文字、文字としてのバックスラッシュ）は 0 で値はそのまま。投稿経路の模擬は、異常な記録が gh の呼び出し 0 件で `CommentError`、対照は書込みまで成功。lint は base と同じ `FLY002` 2 件だけ
+- PR 修正ループ 1 サイクル目（HEAD `84f5fc3f`）: レビュアーは `devin_swe2_max`（SWE-2 Max）・`pi_opencode-go_deepseek4-flash_max`（deepseek-v4.1-flash）・`pi_openai-codex_gpt6-sol_xhigh`（gpt-6.1-sol）の 3 名で、3 名とも Approve。指摘は SWE-2 Max の L-1 の 1 件だけ
+  - `SWE-2-Max#L-1@84f5fc3ff5ba`（Low）: `fold` が、記録ではないコメントのメタ情報（`user.login`・`author_association`）に単一サロゲートがあると、`ignored_comments` の出力で未捕捉の `UnicodeEncodeError` になる。確認済みの一覧（`verified/84f5fc3ff5ba.json`）で、head と base の隔離 worktree で再現した（confirmed、`preexisting`）→ 対応しない。実際の GitHub の login と `author_association` はサロゲートを持たず、手作りのコメント一覧 JSON を `fold` に渡したときだけ起きる。この PR が直した記録の検証の境界の外で、Spec の対象外（無信頼投稿者のコメントの扱い）に当たる。別 Issue の候補
+- 結論: 修正不要。planner は `claude-opus-5-5`（Claude Code）。自己レビューは修正が無いので行っていない。Task レビューで持ち越した minor（追加テストの行の折り返し幅）は直していない
