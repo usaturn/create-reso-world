@@ -55,7 +55,7 @@ PR #432（merged 2026-11-13、merge commit `c120e59f`）でカタログの値・
 6. **after_run**: AW の 1 行「PR レビューの後処理。ランナーの観測値を実行記録へ追記する。」。CRW の追加注記（個人設定は書き換えない / after_run = [] の caller は attach-runner を明示実行）は個人設定の例コメントと README が案内するので TOML からは落とす。`--project .` の値は維持。
 7. **inspect**: AW の 4 行を基本に `usaturn/agent-workspace#565` を付け、#337 の経緯行（Command Code GOAT は契約終了のため既定から外す）を保持する。AW の 4 行目「#616 で利用者が個人設定で使っている構成に合わせた」は AW 固有の出自記述で、CRW の実個人設定には割り当ての上書きが無く事実と合わないため削除し、4 行目は「下の 3 人は指定が無いときの既定値で、性能の順位ではない。」とする（D9）。
 8. **issue.implement**: AW の 5 行に `usaturn/agent-workspace#679` を付ける。`self` の値は維持。
-9. **fix.assignments**: CRW のコメント（run_roles.py が使う担当・self の説明・codex 拒否注記）を保持する。参照 `#116` だけを `usaturn/agent-workspace#116` に直す。AW に無いコメントだが、CRW 固有の拒否挙動を説明する理由がコメント本文にある。
+9. **fix.assignments**: CRW のコメント（run_roles.py が使う担当・self の説明・codex 拒否注記）を保持する。参照 `#116` だけを `usaturn/create-reso-world#116` に直す。AW に無いコメントだが、CRW 固有の拒否挙動を説明する理由がコメント本文にある。
 
 ### 揃えない差分（理由をコメントか README に残す）
 
@@ -151,6 +151,8 @@ worktree を cwd にして:
 | `claude-opus-5-5#I-1@2a9b9b887a44` | 対応しない | README:1500 の `AW` は全文に1回のみで定義が無いことを確認した。Antigravity agent の不追加理由の可読性だけに影響し、設定や実行の誤りを生まない | 曖昧さによる誤操作の具体的な根拠、または利用者による名指しの修正依頼 |
 
 「事実として正しい」ことと、この完遂で修正することを区別した。参照元は https://github.com/usaturn/create-reso-world/issues/116 、AW の完全名は `usaturn/agent-workspace` である。設計9/D4・Plan の過去の実装方針を、正しい出典を示す今後の指示として使わない。PR の既知の制限にも条件と回避方法を記載する。
+
+> 2026-11-14 追記: その後の利用者の指示で、TOML:277・設計 9・Plan:114/116 の参照を `usaturn/create-reso-world#116` に訂正し、README:1500 の `AW` を `usaturn/agent-workspace` に直した。この表の「対応しない」は当時の裁定の記録として残す。
 
 ### 要件と検証の対応
 

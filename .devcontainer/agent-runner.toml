@@ -274,7 +274,7 @@ after_run = [[
 [workflows.review.assignments.inspect]
 agents = ["claude-code_opus_xhigh", "devin_swe2_max", "pi_opencode-go_deepseek4-flash_max"]
 
-# review-fix-planning の run_roles.py が使う担当（usaturn/agent-workspace#116 のボードの D-13）。self は司令塔が自分で実行する。
+# review-fix-planning の run_roles.py が使う担当（usaturn/create-reso-world#116 のボードの D-13）。self は司令塔が自分で実行する。
 # self-review・fix-check には codex の担当を割り当てられない（run_roles.py が起動の前に拒否する）。
 [workflows.fix.assignments.implement]
 agents = ["self"]
