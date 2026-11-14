@@ -27,73 +27,87 @@ helper が認識するのは `<!-- planning-parallel-issues:<名前>:start -->` 
 
 | 場所 | 用途 | 現状 |
 | --- | --- | --- |
-| `.agents/skills/issue-authoring/scripts/reshape_issue.py` の `_managed_ranges` | 整形で管理対象をバイト単位で保つ | 現行形式と子マーカーだけ。ほかの `planning-parallel-issues` 行は拒否 |
-| `.agents/scripts/issue_format.py` の `_excluded_numbers` | 節の検査で管理対象を読まない | 現行形式の範囲だけを除く |
+| `.agents/skills/issue-authoring/scripts/reshape_issue.py` の `_managed_ranges` | 整形で管理対象をバイト単位で保つ | `:board:` 形式と子マーカーだけ。ほかの `planning-parallel-issues` 行は拒否 |
+| `.agents/scripts/issue_format.py` の `_excluded_numbers` | 節の検査で管理対象を読まない | `:board:` 形式の範囲だけを除く |
 | `.agents/skills/issue-authoring/scripts/publish_issue.py` の `KNOWN_COMMENT` | 隠れたコメントの警告から除く | `planning-parallel-issues:`・`planning-parallel-issues board:` を除く。`<!-- board-ledger:… -->` は警告になる |
 
 GitHub 上で `board-ledger` を本文に持つ create-reso-world の Issue は #349 だけである（2026-11-15 に `search/issues` で確認。ほかの検索結果はコメントでの言及）。
 
 ## 目的・目標外
 
-- 目的: 既存形式（#349 の形）のボードを整形でき、管理対象（ボード・ledger・子マーカー）がバイト単位で保たれる。マーカーの構文の定義元を 1 つの文書にし、両スキルの references・helper・テストを一致させる
+- 目的: `board-ledger` 形式（#349 の形）のボードを整形でき、管理対象（ボード・ledger・子マーカー）がバイト単位で保たれる。マーカーの構文の定義元を 1 つの文書にし、両スキルの references・helper・テストを一致させる
 - 目標外: #349 の本文の更新（この修正の後に別途行う）、既存ボードの一括移行、ledger の値・子・依存関係の変更、archive 形式（`issue-format-original-managed-v1`）の変更
-- 失敗とみなすこと（anti-goal）: 本当に未知・破損したマーカーを通す、任意の HTML コメントを管理対象として扱う、管理対象のバイト列を変える、現行形式のボードの整形が退行する
+- 失敗とみなすこと（anti-goal）: 本当に未知・破損したマーカーを通す、任意の HTML コメントを管理対象として扱う、管理対象のバイト列を変える、`:board:` 形式のボードの整形が退行する
 
 ## 決定記録
 
+### 用語
+
+マーカーの 2 つの形を、archive の「旧形式」「新形式」（`issue-format-original`・`issue-format-original-managed-v1`）と混ざらないよう、次の名前で呼ぶ（S6）。
+
+- **`:board:` 形式**: helper が以前から認識する `<!-- planning-parallel-issues:<名前>:start -->` 〜 `:end -->` の形
+- **`board-ledger` 形式**: #349 の coordinator が書いた `<!-- planning-parallel-issues board: <key> -->` と `<!-- board-ledger:start -->` 〜 `:end -->` の形
+
 ### D1. 修正の方向
 
-- 選択した案: (a)+(c)。helper が旧形式も管理対象として読み（後方互換）、マーカーの構文を `.agents/issue-format.md` に定義して、`planning-parallel-issues` の references からその節を参照する。新しく書くボードは現行形式だけを使い、旧形式は読み取りの互換だけにする
-- 検討した別案: (b) `planning-parallel-issues` に helper の形式を書かせ、既存ボードのマーカーを移行する。移行には #349 の本文の書き換えが要り、Issue の「対象外」（#349 の本文更新そのもの）に当たる。移行中に旧形式の本文を整形できない期間も残る。(c) だけ（定義を書くだけ）では #349 が整形できない
-- 選択理由: 既存のボードを書き換えずに受け入れ条件（#349 で prepare → build → verify が成功）を満たせる。旧形式の構文を厳密に決めて読むので、未知のマーカーの拒否は弱まらない
+- 選択した案: (a)+(c)。helper が `board-ledger` 形式も管理対象として読み（後方互換）、マーカーの構文を `.agents/issue-format.md` に定義して、`planning-parallel-issues` の references からその節を参照する。新しく作るボードは `:board:` 形式だけを書く。helper は `board-ledger` 形式を認識するが、新しいボードに `board-ledger` 形式を書かない
+- 検討した別案: (b) `planning-parallel-issues` に helper の形式を書かせ、既存ボードのマーカーを移行する。移行には #349 の本文の書き換えが要り、Issue の「対象外」（#349 の本文更新そのもの）に当たる。移行中に `board-ledger` 形式の本文を整形できない期間も残る。(c) だけ（定義を書くだけ）では #349 が整形できない
+- 選択理由: 既存のボードを書き換えずに、#349 の整形を可能にできる。`board-ledger` 形式の構文を厳密に決めて読むので、未知のマーカーの拒否は弱まらない
 - 委任指示: issue-to-pr の推奨案による委任（Issue の「エージェントに任せる事項」に修正方向の選択がある）
 
-### D2. 定義元
+### D2. 定義元と既存ボードの保守
 
-- 選択した案: `.agents/issue-format.md` の「ほかのスキルの管理対象の節」を、マーカー構文の定義の節に広げる（現行形式・旧形式・子マーカー・拒否する形）。`planning-parallel-issues` の `references/issue-board.md` の Publication ledger の項から、この節を参照し、新しいボードは現行形式で書くと明記する。`github-operations.md` は ledger の記録の手順だけを持つので、同じ節への参照を 1 行足す
+- 選択した案: `.agents/issue-format.md` に、`planning-parallel-issues` のマーカー構文を定義する小節を設ける（`:board:` 形式・`board-ledger` 形式・子マーカー・拒否する形）。今の「ほかのスキルの管理対象の節」の項（54 行目付近）と「節の検査で読まない範囲」の (3)（487 行目付近）は、この小節を参照する形に直す。`.agents/skills/issue-authoring/references/reshaping.md` の停止条件「未知の `planning-parallel-issues` の行」（64 行目付近）も、この小節の拒否する形を参照する。`.agents/skills/issue-authoring/evals/reshape-validation.md` は移植元の過去の評価記録（冒頭に明記）なので書き換えない（S3）
+- `:board:` 形式の構造: コードが受け付ける構造（`board:<key>` の範囲の中に `ledger` の範囲を入れる形と、`ledger` の範囲の単独）をそのまま定義する。新しいボードの推奨は、`board:<key>` の範囲の中に `ledger` の範囲を 1 つ入れる形とする（S6）
+- 既存ボードの保守の規則（S2）: 既存のボードは、今のマーカーの形のまま範囲の中身（ledger の表など）だけを更新する。`board-ledger` 形式から `:board:` 形式への書き換えは管理対象の変更に当たり、整形済み（archive を持つ）ボードでは archive の位置マーカーと対応しなくなり次の prepare が止まるので行わない。移行が必要なら別の依頼にする
+- `planning-parallel-issues` の `references/issue-board.md` の Publication ledger の項から、この小節を参照し、新しいボードは `:board:` 形式で書くこと・既存ボードはマーカーを保つことを明記する。`github-operations.md` の ledger の記録の段落にも同じ小節への参照を 1 文足す
 - 検討した別案: `planning-parallel-issues/references/issue-board.md` を定義元にする。マーカーを読む helper（`issue_format.py`）とその規則の文書が `.agents/` の共通部分にあり、スキル側に置くと共通部分がスキルの references に依存する
 - 選択理由: 既に構文の 1 行がある共通の規則の文書で、両スキルから参照されている
 - 委任指示: 推奨案による委任
 
-### D3. 旧形式の構文と管理対象の単位
+### D3. `board-ledger` 形式の構文と管理対象の単位
 
-- 選択した案: 旧形式は、次の 3 種の行が、この順で、間に別の行を挟まずに始まる 1 つの範囲とする。範囲全体を 1 つの管理対象（kind `ledger`、name `legacy-ledger:<key>`）として扱う
+- 選択した案: `board-ledger` 形式は、次の 3 種の行が、この順で、ボード行と開始の行の間に別の行を挟まずに並ぶ 1 つの範囲とする。範囲全体を 1 つの管理対象（kind `ledger`、name `legacy-ledger:<key>`）として扱う
   1. ボード行 `<!-- planning-parallel-issues board: <key> -->`（`board:` の後に半角空白 1 個、`<key>` は空白を含まない 1 文字以上。行全体が一致する）
   2. 直後の行 `<!-- board-ledger:start -->`（行全体が一致する）
   3. その後の最初の `<!-- board-ledger:end -->` の行（行全体が一致する）
-- 拒否する形（終了コード 2）: ボード行の直後が `<!-- board-ledger:start -->` でない、`board-ledger:end` が無い、ボード行の無い `<!-- board-ledger:start -->`・`<!-- board-ledger:end -->`、旧形式の範囲の中の `planning-parallel-issues` 行・`board-ledger` 行、現行形式の範囲の中の旧形式の行（現行の「範囲の中の未知の `planning-parallel-issues` 行」の拒否を保つ）。コードブロック・HTML コメントの中の行は、現行形式と同じく無視する
+- 拒否する形（終了コード 2）: ボード行の直後が `<!-- board-ledger:start -->` でない、`board-ledger:end` が無い、ボード行の無い `<!-- board-ledger:start -->`・`<!-- board-ledger:end -->`、`board-ledger` 形式の範囲の中の `planning-parallel-issues` 行（子マーカーを除く）・`board-ledger` 行、`:board:` 形式の範囲の中の `board-ledger` 形式の行（`:board:` 形式の「範囲の中の未知の `planning-parallel-issues` 行」の拒否を保つ）。コードブロック・HTML コメントの中の行は、`:board:` 形式と同じく無視する
+- 範囲の中の子マーカー行: `:board:` 形式と同じく無視する（管理対象の一部としてバイト列を保ち、拒否しない）（S4）
+- 任意の HTML コメント: Issue の防御範囲は「引き続き拒否する」と書くが、helper は今も任意の HTML コメントを拒否せず、管理対象にしないだけである。この Spec はその既存の挙動を保ち、「管理対象にしない」と読み替える。拒否するのは `planning-parallel-issues` 行と `board-ledger` 行の未知・破損の形だけである（S4）
 - 検討した別案: ボード行と ledger の範囲を別々の管理対象にする。ボード行だけが単独で現れる形・ledger だけの形も許すことになり、構文が緩くなる。#349 では 2 つは隣り合っている
-- 選択理由: 実在する形（#349）だけを、隙間なく厳密に受け入れる。name を現行形式（`board:<key>`）と分けるので、archive の位置マーカー（`ledger:legacy-ledger:<key>`）が現行形式の範囲と混ざらない
+- 選択理由: 実在する形（#349）だけを、隙間なく厳密に受け入れる。name を `:board:` 形式（`board:<key>`）と分けるので、archive の位置マーカー（`ledger:legacy-ledger:<key>`）が `:board:` 形式の範囲と混ざらない
 - 委任指示: 推奨案による委任
 
 ### D4. 3 か所の helper の合わせ方
 
-- 選択した案: `reshape_issue.py` の `_managed_ranges` に旧形式を足す（D3）。`issue_format.py` の `_excluded_numbers` は、節の検査で旧形式の範囲（ボード行から `board-ledger:end` まで）も読まない（現行形式と同じく、対応する終わりが無い開始は範囲にしない）。`publish_issue.py` の `KNOWN_COMMENT` に `<!-- board-ledger:start -->`・`<!-- board-ledger:end -->` を足し、警告から除く
+- 選択した案: `reshape_issue.py` の `_managed_ranges` に `board-ledger` 形式を足す（D3）。`issue_format.py` の `_excluded_numbers` は、節の検査で `board-ledger` 形式の範囲（ボード行から `board-ledger:end` まで）も読まない。範囲の判定は D3 と同じ隣接の条件（ボード行の直後の行が `<!-- board-ledger:start -->`）を使い、`:board:` 形式と同じく、対応する終わりが無い開始は範囲にしない（拒否はしない）（S4）。`publish_issue.py` の `KNOWN_COMMENT` に `<!-- board-ledger:start -->`・`<!-- board-ledger:end -->` を足し、警告から除く
 - 検討した別案: 3 か所の解釈を 1 つの関数にまとめる。`reshape_issue.py` は拒否を伴う厳密な解析で、`issue_format.py` は拒否しない除外であり、目的が違う。まとめると変更が大きくなる
 - 選択理由: 定義は文書の 1 か所にし、各 helper はその節に沿って最小の変更で合わせる
 - 委任指示: 推奨案による委任
 
 ### D5. テスト
 
-- 選択した案: `.agents/skills/issue-authoring/tests/test_reshape_issue.py` に S のテストを 2 件足す
-  1. 旧形式のボード（#349 の形を縮めた架空の本文。CRLF・非 ASCII を含む）で prepare → build → verify が成功し、管理対象のバイト列が保たれ、archive から元の本文が復元される。改変した管理対象の verify が失敗する（陽性対照と改変の検出）
-  2. 拒否の代表を parametrize で 1 件: ボード行の直後に ledger の開始が無い、閉じていない ledger、ボード行の無い ledger の開始、本当に未知の `planning-parallel-issues` 行
-- テストしないもの: `issue_format.py` の除外と `publish_issue.py` の警告（壊れても節の検査の問題・警告として表に出るので L）。文書の文言（F）。現行形式の退行は既存の 2 件のテストが確かめる（D）
+- 選択した案: `.agents/skills/issue-authoring/tests/test_reshape_issue.py` に S のテストを 2 つ足す（S5）
+  1. 保存: #349 の形を縮めた架空の本文（LF、非 ASCII を含む）を基本形にし、同じ本文を CRLF に変換した形も parametrize で確かめる。prepare → build が成功し、`verify_body` が ok、管理対象のバイト列が保たれ、archive から元の本文が復元される。改変した管理対象では `verify_body` が ok にならない（陽性対照と改変の検出）
+  2. 拒否: parametrize で 3 ケース。ボード行はあるが ledger が閉じていない、ボード行の無い `board-ledger` 行、本当に未知の `planning-parallel-issues` 行（既存の拒否が `board-ledger` 形式の追加で弱まっていないことの確認）。1 の陽性対照が、何でも拒否する実装を落とす
+- テストしないもの: `issue_format.py` の除外と `publish_issue.py` の警告（壊れても節の検査の問題・警告として表に出るので L）。文書の文言（F）。`:board:` 形式の退行は既存の 2 件のテストが確かめる（D）
 - 委任指示: AGENTS.md の「テストの採用基準」
 
 ### D6. 実データでの確認
 
-- 選択した案: マージの前に、#349 の snapshot（`gh api` の読み取りだけ）で `reshape_issue.py prepare` → 編集なしの `build` → `verify` をローカルで実行し、終了コード 0 と `preservation.ok` を確かめる。GitHub への書き込みはしない
-- 委任指示: Issue の受け入れ条件（「動作環境: 実 GitHub へ書き込まない」）
+- 選択した案（S1）: マージの前に、#349 の snapshot（`gh api` の読み取りだけ）で `reshape_issue.py prepare` と、`segments.json` を変えない `build` をローカルで実行し、両方の終了コード 0 と、`build` の出力の `preservation.ok` が true であることを確かめる（`build` は内部で `verify_body` を実行する）。GitHub への書き込みはしない
+- `publish_issue.py draft update` → `reshape_issue.py verify` は、#349 の本文が共有書式の必須の節を持たない（`issue_format.py check` が `section_missing`）ため、編集しない本文では `draft update` が `check_failed` で止まり、実行できない。#349 での `draft update` → `verify` は、#349 の本文を共有書式に組み直すとき（Issue の対象外。この修正の後に別途行う）に行い、この Issue のマージの条件に含めない。PR 本文と Issue に、マージ後に確かめる項目として書く
+- 委任指示: Issue の受け入れ条件（「動作環境: 実 GitHub へ書き込まない」）と「対象外」（#349 の本文更新）
 
 ## 受け入れ基準
 
 - 動作環境: Dev Container・uv。テストは偽の本文・ローカルファイルだけを使い、実 GitHub へ書き込まない
-- 実入力: #349 の形の本文（`## Publication ledger` の下にボード行・ledger の開始・日本語の説明文と表・ledger の終わり。改行は LF と CRLF）
-- 旧形式のボードで prepare が終了コード 0 で成功し、build・verify で管理対象がバイト単位で保たれる（`preservation.ok`）
-- 現行形式のボードと子マーカーの整形が引き続き成功する（既存テストが通る）
-- 防御範囲: 対象は現行形式・旧形式のボードマーカーと子マーカー。対象外の反例（任意の HTML コメント、閉じていない囲み、本当に未知の `planning-parallel-issues` 行、ボード行の無い `board-ledger` 行）は管理対象にせず、`planning-parallel-issues` 行と `board-ledger` 行は拒否する
-- マーカーの構文の定義が `.agents/issue-format.md` の 1 か所にあり、`planning-parallel-issues` の references はそこを参照する
+- 実入力: #349 の形の本文（`## Publication ledger` の下にボード行・ledger の開始・日本語の説明文と表・ledger の終わり。実際の #349 は LF。CRLF は同じ本文の変換で確かめる）
+- `board-ledger` 形式のボードで prepare が終了コード 0 で成功し、build で管理対象がバイト単位で保たれる（`preservation.ok`）。#349 の snapshot でも同じ
+- `:board:` 形式のボードと子マーカーの整形が引き続き成功する（既存テストが通る）
+- 防御範囲: 対象は `:board:` 形式・`board-ledger` 形式のボードマーカーと子マーカー。対象外の反例のうち、任意の HTML コメントと閉じていない囲みは管理対象にしない（今の挙動どおり）。ボード行の無い `board-ledger` 行、壊れた `board-ledger` 形式、本当に未知の `planning-parallel-issues` 行は拒否する
+- マーカーの構文の定義が `.agents/issue-format.md` の 1 か所にあり、同じファイルの他の記述、`issue-authoring` の `references/reshaping.md`、`planning-parallel-issues` の references はそこを参照する
+- マージ後に確かめる項目: #349 の本文を共有書式に組み直すときの `draft update` → `verify` の成功（D6）
 
 ## 残す判断（実装担当に任せる）
 
@@ -108,3 +122,16 @@ GitHub 上で `board-ledger` を本文に持つ create-reso-world の Issue は 
 - `review_id`: `462050a34ea848b19e6b298dc1a83a19`、reviewed の Spec SHA-256: `6f6bdcb43db929c3755c6bc0ea6e2e1662b0019cc245903ff6a4f30b64c42e17`、対象 revision `b98775b10cfd1536c9be364e82d6acad22efa057`
 - 所要時間: 約 100 秒（`elapsed_seconds` 99.6）。`outside_changes`: なし。`unprotected_changes`: 他の作業が残した `/tmp/pr-review-376-*`・`/tmp/review-fix-planning.*` の 6 件（この run の変更ではない）
 - 結果: verdict `sound`、concerns 0 件。採否の対象なし
+
+### Spec レビュー（1 回目）
+
+- 担当: `--spec-review claude-code_sonnet_xhigh`（明示値。`fallback` なし）、`actual_agent` も同じ。`identity`: model `claude-sonnet-5-5`・CLI 2.1.325
+- `review_id`: `41e9fd131a514a03b32313a0598d3744`、reviewed の Spec SHA-256: `96ce516dc7e14f82ed40ae3ee992887723157952d8d2b0f09923d34f56098502`、対象 revision `e7188f09ce424ed490751e974100236bd20c9a4c`
+- 所要時間: 約 242 秒。`outside_changes`: なし。`unprotected_changes`: 設計レビューと同じ他の作業の 6 件
+- 採否: 6 件すべて採用
+  - S1（important）: D6 を、#349 では prepare と変更なしの build（`preservation.ok`）までをマージ前に確かめ、`draft update` → `verify` はマージ後の項目とする形に直した
+  - S2（important）: D2 に既存ボードの保守の規則（マーカーを保ち、中身だけを更新する。移行は別の依頼）を足した
+  - S3（minor）: D2 に文書の修正範囲（issue-format.md の 2 か所、reshaping.md）を列挙し、過去の評価記録は書き換えないとした
+  - S4（minor）: D3 に範囲の中の子マーカーの扱いと HTML コメントの読み替えを、D4 に除外の判定の条件を足した
+  - S5（minor）: D5 のテストを、LF の基本形と CRLF の変換、拒否 3 ケースに直した
+  - S6（minor）: 「`:board:` 形式」「`board-ledger` 形式」の名前を付け、`:board:` 形式の構造と推奨を D2 に書いた
