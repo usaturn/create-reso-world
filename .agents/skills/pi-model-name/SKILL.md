@@ -10,7 +10,7 @@ pi が今どの provider / model で動いているかは、bash ツールに注
 ## When to Use
 
 - 「今のモデル名を表示して」と聞かれた
-- レビューや成果物へ `MODEL_NAME` を記録する
+- レビューや成果物へ `MODEL_NAME` を記録する（入口ごとの値は「入口ごとの使い分け」を参照）
 - `PI_MODEL` が空、または `PI_DISTILL_MODEL` と区別できない
 - provider / reasoning / session を合わせて確認したい
 
@@ -19,6 +19,17 @@ When NOT to use:
 - pi 以外のランタイム（Codex / Claude / Cursor / Grok）のモデル確認
 - モデルカタログの一覧や切替操作（`pi --list-models`、`--model` 起動引数の話）
 - 料金・性能比較などのモデル選定相談
+
+## 入口ごとの使い分け
+
+表示・記録用の値と、pr-review の prepare に渡す値は別である。
+
+| 入口 | 使う値 |
+| --- | --- |
+| 利用者への表示、pr-review-fix-loop の `--controller-model`、review-fix-planning の状況コメントの `MODEL_NAME` | 既定出力 `provider/model` |
+| pr-review の `prepare --model-name` | `--model` の出力（`PI_MODEL` 単体）または省略 |
+
+prepare は `--model-name` を省略すると実際の `PI_PROVIDER`・`PI_MODEL` を自分で読む。既定出力 `provider/model` を `--model-name` に渡すと `--model-name does not match this runtime's PI_MODEL` で拒否され、自己レビューでは予約した枠だけが残る。保存名・本文のモデルは prepare が返す `reviewer` を使う。
 
 ## Core Pattern
 
@@ -42,7 +53,7 @@ grep -o '"modelId":"[^"]*"' ~/.pi/agent/sessions/--*/ *.jsonl | tail -1
 | 変数 | 意味 | 備考 |
 | --- | --- | --- |
 | `PI_PROVIDER` | 現在の provider | bash / powershell ツールにのみ注入 |
-| `PI_MODEL` | 現在の model ID | `MODEL_NAME` の正本 |
+| `PI_MODEL` | 現在の model ID | 表示・記録は `provider/model`、pr-review の `prepare --model-name` は単体か省略（「入口ごとの使い分け」） |
 | `PI_SESSION_ID` | 現セッション ID | ホストシェルの `!` では入らない |
 | `PI_SESSION_FILE` | 現セッション jsonl | ephemeral では未設定 |
 | `PI_SUBAGENT_SESSION` | 子エージェントのセッション jsonl | `PI_SESSION_FILE` が無いときだけ照合に使う |

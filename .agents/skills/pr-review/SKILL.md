@@ -41,6 +41,7 @@ PR 全体の差分を隔離 worktree で読み、検証した指摘を助言と�
 - Claude Code の allowed-tools は許可確認用で、独自の保存手順ではない。`.claude/skills/pr-review` はこの実体へのリンク。
 - Devin headlessでは途中のassistant説明もstdoutへ連結されるため、中間messageを抑止する。禁止指示だけで漏れを保証できないので、**最終complete/fail JSONを1つの `json` コードフェンスで囲む**。JSONの外に説明を付けず、途中にJSONフェンスを出さない。既存Devin adapterがこの形式をobjectとして回収するため、共有Request/Receipt/Resultやpayloadの内容は変更しない。Devin は冒頭の対象 PR 行だけを補間する。本文の `＄ARGUMENTS` / `＄1`〜`＄9` を説明やシェルの位置引数へ半角で書かない。空欄・ドル記号始まりは PR 未指定。モデルは現在のシステム提示 `You are powered by <MODEL>` を使い、過去 transcript や要求した設定を使わない。
 - Pi の `MODEL_NAME` は **pi-model-name スキルの手順**で決め、自身の bash で `PI_PROVIDER` と `PI_MODEL` の両方を確認する。どちらか空なら履歴の model_change・設定に fallback しない。対話では正確な識別子を確認し、非対話では failed を返す。bash の timeout は秒単位。
+- Pi の prepare は `--model-name` を省く（helper が実際の `PI_PROVIDER`・`PI_MODEL` を読む）か、`print-pi-model.sh --model` の出力（`PI_MODEL` 単体）だけを渡す。pi-model-name の既定出力 `provider/model` は表示・pr-review-fix-loop の `--controller-model`・review-fix-planning の状況コメント用の値であり、`--model-name` に渡すと `--model-name does not match this runtime's PI_MODEL` で拒否され、自己レビューでは予約した枠だけが残る。保存名・本文のモデルは prepare が返す `reviewer` を使う。
 - Codex は `--model-name` を渡さず、helper が現在の `CODEX_THREAD_ID` の rollout から確定する。未完の末尾だけを無視し、壊れた完了行・モデル欠落は拒否する。
 - 他 runtime も現在提示された正確な model ID だけを `--model-name` に渡す。系列名・過去成果・設定から推測しない。未知の provider / effort / session / CLI は unknown、未計測の待ちは null。設定のrequested値をactualに写さない。
 
