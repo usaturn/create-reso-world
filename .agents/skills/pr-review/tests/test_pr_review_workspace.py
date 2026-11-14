@@ -1959,6 +1959,39 @@ def test_strict_reap_keeps_a_submodule_local_commit(
     assert Path(saved["destination"]).read_text(encoding="utf-8") == "review\n"
 
 
+def test_cleanup_keeps_a_submodule_local_commit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # 保存に成功しても、ignore=all の submodule のローカル commit は通常の cleanup で消さない（無言のデータ損失）。
+    repo, commit = make_submodule_fixture(tmp_path)
+    session = create_session(tmp_path, monkeypatch, repo=repo, commit=commit)
+    result = session["result"]
+    state_file = result["state_file"]
+    session_dir = Path(state_file).parent
+    worktree = Path(result["worktree"])
+    init_submodules(worktree)
+    saved = saved_session(session)
+    submodule = worktree / "sub módulo"
+    git(submodule, "config", "user.name", "Test User")
+    git(submodule, "config", "user.email", "test@example.com")
+    (submodule / "local.txt").write_text("local work one\nlocal work two\n", encoding="utf-8")
+    git(submodule, "add", "local.txt")
+    git(submodule, "commit", "-m", "local review work")
+    local_head = git(submodule, "rev-parse", "HEAD")
+    assert git(worktree, "rev-parse", "HEAD:sub módulo") != local_head
+
+    assert workspace.main(["cleanup", "--state", state_file]) == 1
+    kept = json.loads(capsys.readouterr().out)
+    assert kept["status"] == "retained" and kept["reason"]
+    assert kept["retained_paths"]["session_dir"] == str(session_dir)
+
+    assert session_dir.is_dir() and worktree.is_dir()
+    assert git(submodule, "rev-parse", "HEAD") == local_head
+    git(submodule, "cat-file", "-e", local_head)
+    assert (submodule / "local.txt").read_text(encoding="utf-8") == "local work one\nlocal work two\n"
+    assert Path(saved["destination"]).read_text(encoding="utf-8") == "review\n"
+
+
 def test_strict_reap_keeps_nested_submodule_index_flags(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

@@ -87,7 +87,7 @@ completeはrequestのbytes/hashとbinding、読んだ主要skillのhash、候補
 | pr_head/reviewed_head | resolve時のPR headと実レビュー対象のfullSHA。指定commitなら違うことがある |
 | review_file/findings_file | 保存された成果2件の完全パス。helperが決定しpair検査済み |
 | active_findings | active件数。successかつ0で初めて「検査済み成果の指摘0」と扱う |
-| cleanup | success。削除拒否はfailed、未実施はnot_attempted。fail --abandonでは試行を消せたらsuccess |
+| cleanup | success。削除拒否はfailed、未実施はnot_attempted。fail --abandonでは試行を消せたらsuccess。worktree・submoduleに利用者作業（strict退役と同じ検査）があれば通常のcleanupも削除を拒否し、セッションとpinned refを残す |
 | cleanup_details | helperの削除結果。pr_ref_status=repinnedなら後続セッションのrefを残した理由と完全名を報告。deleted/missingも区別する。keptは試行のheadが分からずrefを残した。fail --abandonで消せなければerrorに理由 |
 | retained_paths | failed時の残存確認先worktree/draft/session/pr_ref。途中cleanup済みを含み得る。成功とfail --abandonで消したときはnull。削除済みWTを成果参照にしない |
 | reason | successはnull、failedは具体的理由 |
@@ -95,7 +95,7 @@ completeはrequestのbytes/hashとbinding、読んだ主要skillのhash、候補
 | save_seconds/cleanup_seconds/total_seconds | 実測。未実施を実測0にしない |
 | run_record | 実行記録の完全パス。更新に失敗したときだけ run_record_error に理由 |
 
-失敗payloadはstatus=failed・非ゼロ終了・reasonを返す。成果が無いときのactive_findingsとartifact pathはnull。保存済みでcleanupだけ失敗したときは保存した成果と件数、cleanup=failed、残るstate_fileを返す。完全パスのstate/draft/WT/refを添えて停止し、保存や削除を手で代行しない。補助worker停止未確認ならcomplete自体を呼ばない。
+失敗payloadはstatus=failed・非ゼロ終了・reasonを返す。成果が無いときのactive_findingsとartifact pathはnull。保存済みでcleanupだけ失敗したときは保存した成果と件数、cleanup=failed、残るstate_fileを返す。worktree・submoduleに利用者作業（strict退役と同じ検査）があると通常のcleanupも削除を拒否してセッションとpinned refを残し、CLIの通常`cleanup`はそのとき終了コード1・`status: "retained"`を返す。完全パスのstate/draft/WT/refを添えて停止し、保存や削除を手で代行しない。補助worker停止未確認ならcomplete自体を呼ばない。
 
 prepare前やレビュー途中に終了するときは、同じ通常入口でfailed objectを作る:
 
