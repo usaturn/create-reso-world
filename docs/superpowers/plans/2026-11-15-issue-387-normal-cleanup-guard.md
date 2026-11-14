@@ -5,7 +5,7 @@
 - 状態: `draft`（issue-to-pr の実行委任。内容の承認は得ていない）
 - Spec: `docs/superpowers/specs/2026-11-15-issue-387-normal-cleanup-guard-design.md`
 - 対象: https://github.com/usaturn/create-reso-world/issues/387
-- base: origin / `refs/heads/main` / `c8a2f58ffb65eced3e18993d97c439bb2d23197b`
+- base: origin / `refs/heads/main` / `df345cc97e95727f97688d6a882e010df81ab255`（着手時は `c8a2f58ffb65eced3e18993d97c439bb2d23197b`。実装後に main が PR #444 で前進し、issue-to-pr の前進追随の検査が `noninteractive.md` の重複で止まったため、利用者の指示「1 rebase して、作業を続行してください。」で手動 rebase（衝突なし）して base を捕捉し直し、必須検証をやり直した）
 - worktree: `.worktrees/issue-387-normal-cleanup-guard`（branch `fix/issue-387-normal-cleanup-guard`）
 
 ## 実行方式と理由
