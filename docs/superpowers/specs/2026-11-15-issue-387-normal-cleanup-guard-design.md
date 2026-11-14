@@ -36,7 +36,7 @@ PR レビューの通常の完了処理（`review_run.complete`）は、保存�
 - 選択した案: strict の worktree 検査 `_require_clean_worktree` をそのまま呼ぶ。
 - 検討した別案: (a) HEAD と submodule の HEAD 一致だけを新しく検査する。(b) `review_run.complete` から `cleanup --strict-reap` を呼ぶ。
 - 選択理由: 受け入れ条件は「strict 側が保持する利用者作業を保存成功だけで削除しない」であり、その定義は既に `_require_clean_worktree` にある。(a) は未追跡ファイル・変更など strict が守る作業を通常完了だけ消し続け、守りの定義を 2 つに分ける。(b) は create journal・既知エントリ・backup の検査まで課し、通常完了が必要とする後片付け（Issue の「すべての削除入口を無条件に同じ挙動へ変えない」）を超える。
-- 委任指示または停止条件: issue-to-pr の推奨案委任。トレードオフとして、レビュー担当が worktree に cache 以外の未追跡ファイルを作った場合も cleanup は拒否され、`status: failed` になる（データを消さない側に倒す。保持したセッションは定期掃除・repo-cleanup-after-merge の strict 退役で後から扱える）。
+- 委任指示または停止条件: issue-to-pr の推奨案委任。トレードオフとして、レビュー担当が worktree に cache 以外の未追跡ファイルを作った場合も cleanup は拒否され、`status: failed` になる（データを消さない側に倒す）。保持したセッションは、定期掃除・repo-cleanup-after-merge の strict 退役でも同じ検査で保持と報告され、利用者作業が残る限り自動では退役しない。回収は、利用者が作業を退避・削除してから strict 退役で行う。
 
 ### D2: 検査の位置
 
@@ -63,12 +63,12 @@ PR レビューの通常の完了処理（`review_run.complete`）は、保存�
 AGENTS.md の「テストの採用基準」で S（無言のデータ損失・失敗を成功と報告しない）に当たるものだけを書く。
 
 1. `.agents/skills/pr-review/tests/test_pr_review_workspace.py`: 保存済みセッションの submodule（`ignore=all`、パス `sub módulo`）にローカル commit を置き、非 strict の `cleanup` を CLI（`workspace.main(["cleanup", "--state", ...])`）で実行する。終了コード 1・`status: "retained"`、worktree・submodule gitdir・セッションディレクトリ・保存レビューが残り、commit オブジェクトが `git cat-file -e` で読めること。正常対照として、同じ fixture の clean な submodule セッションは非 strict `cleanup` で終了コード 0 で退役すること（既存の正常対照テストがあればそれを使い、重複させない）。
-2. `.agents/skills/pr-review/tests/test_review_run.py`: 通常の `review_run.complete` の経路で、worktree に利用者のローカル commit（HEAD が固定 commit と異なる）がある場合、保存は行われ（`review_file` が存在する）、`status: failed`・`cleanup: failed`・`retained_paths` が返り、worktree とその commit が残ること。clean な通常完了が `cleanup: success` で退役する既存テストが正常対照になる。
+2. `.agents/skills/pr-review/tests/test_review_run.py`: 通常の `review_run.complete` の経路で、submodule（`sub módulo`）にローカル commit があり、親 worktree の HEAD は固定 commit のままの場合、保存は成功し（`review_file`・`findings_file` が存在する）、新しい検査が submodule の HEAD と gitlink の不一致で cleanup を拒否して `status: failed`・`cleanup: failed`・`reason`・`retained_paths` が返り、worktree・submodule の commit オブジェクト・state_file が残ること。親 worktree の HEAD を変える入力は使わない（save の `verify_state` が先に "pinned commit" で拒否し、cleanup に到達しないため）。clean な通常完了が `cleanup: success` で退役する既存テストが正常対照になる。
 
 既存の strict 退役テスト、保存ロック・version 7/8・pinned ref・候補一覧のテストは変えずに全て通ること。
 
 ## 受け入れ基準
 
 - 動作環境: Dev Container（Ubuntu 26.04、git、uv）。ローカルの実 Git fixture（`tmp_path`）。実モデルの起動・実 PR の削除はしない。
-- 実入力: 非 ASCII・空白を含む submodule パス `sub módulo`、`ignore=all` の submodule、ローカル commit（`local.txt`）。親 worktree の HEAD 不一致（利用者がレビュー worktree で commit した）。
+- 実入力: 非 ASCII・空白を含む submodule パス `sub módulo`、`ignore=all` の submodule、submodule 内のローカル commit（複数行の `local.txt`）。親 worktree の HEAD は固定 commit のまま（CLI の cleanup・complete の両経路で同じ入力）。親 worktree の HEAD 不一致は complete では save が先に拒否するので、この Issue の入力にしない。
 - 防御範囲: 対象は非 strict `cleanup`（CLI と `review_run.complete` の両方の入口）が、`_require_clean_worktree` が拒否する状態のセッションを消さないこと。対象外の反例: clean な保存済みセッション（submodule の有無に関わらず）は従来どおり退役する。cache（`.venv`・`__pycache__` など）だけの ignored ファイルは退役を妨げない。strict 退役の判定内容は変えない。
