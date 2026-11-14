@@ -61,6 +61,7 @@ Pi の `pi-model-name` スキルの同梱スクリプト `print-pi-model.sh` は
 - 検討した別案: 変えない
 - 選択理由: Pi のエージェントが最初に読む指示であり、ここが既定出力を pr-review の値と案内したままだと、pr-review 側を直しても同じ取り違えが起きうる
 - 委任指示または停止条件: 推奨案での委任。Issue の作るもの（必要なら pi-model-name 側の手順にも書く）の範囲
+- 編集の境界: 変えるのは「## モデル名の抽出」節だけで、`## Response Persona` 以降の利用者所有の節は 1 バイトも変えない（`tests/scripts/test-instructions.bash` が sha256 で凍結している）
 
 ### D5. 固定値テストを足さず、fake の Pi 環境での実行で確かめる
 
@@ -76,6 +77,12 @@ Pi の `pi-model-name` スキルの同梱スクリプト `print-pi-model.sh` は
 - PR 修正ループ（`loop.py check-options`）: `max_cycles: 3`（既定の適用）。`review.inspect` は `devin_swe2_max`・`pi_opencode-go_deepseek4-flash_max`・`pi_openai-codex_gpt6-sol_xhigh`（利用者の `--assign inspect=` による指定）。`fix.implement` は `pi_alibaba_qwen4-max_max`（利用者の `--assign implement=` による指定）。`fix.self-review`・`fix.fix-check` は `self`（既定の適用）
 - 実行方式: `self: false` なので、issue-to-pr の「Task の実装を runner の担当に依頼する」で、Task を 1 つずつ runner の担当に依頼する
 - `--merge` は base が `main` なので適用する。実装スキルの最終のブランチ全体レビューはループの 1 サイクル目で代える
+
+### D7. Spec レビューの記録（1 回目）
+
+- helper: `review_spec.py`（外部担当）。担当: 明示値 `pi_alibaba_qwen4-max_max`、fallback なし。`actual_agent` も `pi_alibaba_qwen4-max_max`、`identity` は model `qwen4-max-preview`・provider `alibaba`・effort `max`
+- `review_dir`: `/workspaces/reso-world/tmp/agents/issue-429.j_exehwb/2026-11-15-issue-429-pi-model-id-design.spec-review/review-1`、`review_id`: `1d160cda82cd49658b1d1447c8acb8ea`、reviewed の Spec SHA-256: `caa612fe62add38c36f25fc29ef870393f1ea37a57d64b9a8ff33c6b34028562`、`elapsed_seconds`: 620、`outside_changes`: なし、`unprotected_changes`: ほかの作業の worktree 7 件（このレビューの対象外。記録だけ）
+- 採否: S1（important、予約の既存挙動の確認が検証に無い）を採用し、検証と受け入れ基準に追記。S2（minor、`.pi/APPEND_SYSTEM.md` のペルソナ節の凍結）を採用し、D4 の編集の境界と検証に追記
 
 ## 変更するファイル
 
@@ -102,12 +109,16 @@ Pi の `pi-model-name` スキルの同梱スクリプト `print-pi-model.sh` は
   - 文書の中で、表示・controller 用の値（`provider/model`）と prepare に渡す値（`PI_MODEL` 単体か省略）が区別され、互いに矛盾しない
 - 防御範囲: 対象は Pi ランタイムの `prepare` のモデル名の受け渡し手順。対象外（変えない反例）は、照合の緩和（`provider/model` との同一視・文字列の分割・requested 値への fallback）、予約済み自己レビューの自動回復・自動再予約、過去の記録の書き換え、ほかのランタイムの model-name 経路、#375・#409・#427 の文字種・記録出力の問題
 - 予約の扱い: `run_roles.py` の予約・回数制限・失敗時に枠が残る挙動は変えない。手順どおりの実行では照合失敗が起きないので、予約だけが残る状態に至らない
-- テスト: 新しいテストを足さない。拒否の挙動は既存テスト（`.agents/skills/pr-review/tests/` と `pi-model-name/tests/`）の実行で確かめる。手順は fake 環境の一時的な実行で確かめる
+- テスト: 新しいテストを足さない。拒否の挙動は既存テスト（`.agents/skills/pr-review/tests/`・`pi-model-name/tests/`）、予約・再予約の拒否は `review-fix-planning/tests/test_run_roles.py`、ペルソナ節の凍結は `tests/scripts/test-instructions.bash` の実行で確かめる。手順と予約の扱いは fake 環境・私有 fixture の一時的な実行で確かめる
 
 ## 検証
 
 - fake 環境で Issue の再現スクリプトと同じ形の確認を、上の実入力すべてについて実行し、結果を PR に書く
 - `PI_PROVIDER`・`PI_MODEL` の欠落の拒否を同じ形で確かめる
 - 既存テスト: `uv run --locked pytest .agents/skills/pr-review/tests .agents/skills/pi-model-name/tests -q`
+- 予約の既存挙動（Issue の目標値 2）: 次の両方を行う。実予約・過去の記録には触れない
+  - 予約・再予約の拒否を守る既存テスト `uv run --locked pytest .agents/skills/review-fix-planning/tests/test_run_roles.py -q` を実行する
+  - 既存テストの私有 Git fixture と実 `reserve_review()` を使い、一時的な実行で「予約 → `observed_model('pi', <既定出力>)` の照合失敗 → 予約 1 件のまま・review state 未作成 → 同じ fixture の再予約は拒否」を確かめる。続けて、改訂した手順の値（省略、`--model` の出力）では照合が成功することを同じ環境で確かめる。一時的な実行のファイルは SESSION の下に置き、commit しない
+- 利用者所有の節: `bash tests/scripts/test-instructions.bash` が成功する（`.pi/APPEND_SYSTEM.md` のペルソナ節が変わっていない）
 - 配置の検査: `bash scripts/check-layout.sh`
 - `git diff` で、変更が上の 4 ファイルと Spec・Plan に限られることを確かめる
