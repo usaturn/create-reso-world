@@ -252,6 +252,8 @@ def test_no_fix_result_requires_post_merge_confirmation_and_issue_update() -> No
     gh.tips = {"feat/plugin-v2": BASE}
     result = mod.finalize(record(), "## マージ前の状況\n検証済み。追加修正なし。最終化を開始。", checks(), runner=gh)
     assert result["outcome"] == "no_fix_needed" and result["issues"] == [901]
+    # 非マージ分岐の comment（action・url を含む）は再開分岐の変更後も保つ
+    assert result["comment"]["comment_id"] == 99 and result["comment"]["action"] == "created"
     assert gh.branch_requests() and set(gh.branch_requests()) == {f"repos/{REPO}/branches/feat/plugin-v2"}
     post, merge, issue = gh.writes()
     assert "POST" in post
@@ -396,7 +398,10 @@ def test_merge_command_success_without_merged_state_is_not_completion() -> None:
 def test_already_merged_with_this_record_posted_only_resumes_issue_updates() -> None:
     gh = FakeGh(state="MERGED")
     gh.comments = [status_comment(record())]
-    assert mod.finalize(record(), "状況", checks(), runner=gh)["outcome"] == "no_fix_needed"
+    result = mod.finalize(record(), "状況", checks(), runner=gh)
+    assert result["outcome"] == "no_fix_needed"
+    # マージ済みの再開でも、照合済みの記録コメントを特定できる ID を返す（loop の reconcile が使う）
+    assert result["comment"] == {"comment_id": 99}
     assert gh.writes() == [("gh", "issue", "close", "901", "--repo", REPO)]
 
 

@@ -3,6 +3,7 @@
 司令塔が start → cycle-begin → review → （review-fix-planning）→ cycle-end → … → finish を順に呼ぶ。
 check-options は start と同じオプションと agent-runner の設定だけを検査し、PR・ロック・run・GitHub に触れない
 （issue-to-pr が worktree を作る前に使う）。
+reconcile はマージ後に abort した run の証拠を読み取りだけで照合し、元の記録を書き換えずに reconcile.json を追記する。
 状態は ``<review_dir>/loop/`` に保存し、どのサブコマンドも標準出力に 1 つの JSON を書く。JSON の ``next`` は、
 次に実行する完全なコマンド（argv の配列）である。レビュアーは agent-runner で起動し、判断の記録は
 ``.agents/scripts/review_records.py`` で照合する。形式を足さず、既存の成果をパスと SHA-256 で参照する。
@@ -213,6 +214,8 @@ class RunRecord(StrictModel):
     started_at: str
     state: Literal["running", "ended", "held", "abandoned"]
     ended_at: str | None = None
+    # finish --abort が結果を受理した時刻（初回だけ）。この項目より前に作った run には無い
+    aborted_at: str | None = None
     result: RunResult | None = None
     resources: list[Resource] = Field(default_factory=list[Resource])
     notes: list[str] = Field(default_factory=list[str])
@@ -430,6 +433,29 @@ class CycleRecord(StrictModel):
     planning: PlanningPart | None = None
 
 
+class Reconciliation(StrictModel):
+    """元の記録を変更せず、マージ後の中断について後から照合した証拠（reconcile.json）。"""
+
+    schema_: Literal["pr-review-fix-loop/v1"] = Field(default="pr-review-fix-loop/v1", alias="schema")
+    kind: Literal["reconcile"] = "reconcile"
+    run_id: str
+    pr: PrRef
+    cycle: int
+    head: str
+    run_sha256: str
+    cycle_sha256: str
+    finalize: FinalizePart
+    finalize_sha256: str
+    comment_id: int
+    comment_sha256: str
+    comment_created_at: str
+    comment_updated_at: str
+    merged_at: str
+    round: int
+    result: RunResult
+    reconciled_at: str
+
+
 # --- 入出力 -------------------------------------------------------------------------------------------------------
 
 
@@ -445,8 +471,13 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def write_json(path: Path, value: BaseModel | Mapping[str, Any] | Sequence[Any]) -> None:
-    """同じディレクトリの一時ファイルに書いてから置き換える（途中の状態を残さない）。"""
+def write_json(
+    path: Path, value: BaseModel | Mapping[str, Any] | Sequence[Any], *, exclusive: bool = False
+) -> None:
+    """同じディレクトリの一時ファイルに書いてから公開する（途中の状態を残さない）。
+
+    exclusive=True は新規作成だけで公開し、既存のパスを上書きしない（既にあれば FileExistsError）。
+    """
     data = value.model_dump(mode="json") if isinstance(value, BaseModel) else value
     text = json.dumps(data, ensure_ascii=False, indent=2) + "\n"
     descriptor, temporary = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
@@ -455,7 +486,11 @@ def write_json(path: Path, value: BaseModel | Mapping[str, Any] | Sequence[Any])
             stream.write(text)
             stream.flush()
             os.fsync(stream.fileno())
-        os.replace(temporary, path)
+        if exclusive:
+            os.link(temporary, path)
+            Path(temporary).unlink()
+        else:
+            os.replace(temporary, path)
     except BaseException:
         Path(temporary).unlink(missing_ok=True)
         raise
@@ -643,6 +678,8 @@ class PullState(StrictModel):
     merged: bool
     head_sha: str
     head_ref: str
+    # PR の応答に無いこともある任意項目。reconcile だけが必須とする
+    merged_at: str | None = None
 
     @property
     def open(self) -> bool:
@@ -680,6 +717,7 @@ class GitHub:
                 merged=value["merged"],
                 head_sha=head["sha"],
                 head_ref=head["ref"],
+                merged_at=value.get("merged_at"),
             )
         except (KeyError, TypeError, ValidationError) as error:
             raise LoopError(5, "github", f"{repository}#{number} の PR の応答を読めない") from error
@@ -694,6 +732,17 @@ class GitHub:
     def comments(self, repository: str, number: int) -> Any:
         """``gh api --paginate --slurp`` の出力（ページの配列）をそのまま返す。"""
         return self._api("--paginate", "--slurp", f"repos/{repository}/issues/{number}/comments")
+
+    def comment(self, repository: str, comment_id: int) -> dict[str, Any]:
+        """単一コメントの生応答。判断の記録の正規化では落ちる投稿・更新日時も取得する。"""
+        value = self._api(f"repos/{repository}/issues/comments/{comment_id}")
+        if not isinstance(value, dict):
+            raise LoopError(5, "github", "指定コメントの応答が依頼と食い違う")
+        posted_id = cast(dict[str, Any], value).get("id")
+        # 応答の ID の不一致は証拠の不整合（4）。基盤障害（5）と混ぜない
+        if type(posted_id) is not int or posted_id != comment_id:
+            raise LoopError(4, "record_inconsistent", "単一コメントの応答の ID が指定コメントと一致しない")
+        return cast(dict[str, Any], value)
 
     def login(self) -> str:
         """認証済みの利用者の login（``gh api user --jq '.login // empty'``）。
@@ -1821,6 +1870,10 @@ _DIAGNOSTIC_LINE = re.compile(
     re.IGNORECASE,
 )
 _EXTRACTION_STATES = frozenset({"response_failed", "missing_result", "invalid_result"})
+# ツールの出力・モデルの本文のイベント。is_error が true でも本文は CLI の失敗の報告ではないので、message などの
+# 本文の欄は分類の文に使わない（失敗の報告の事実は _failure_event が別に数える）。このうち CLI が失敗の報告
+# （error 欄）を付けるのは assistant だけ（_event_error_text）。result はモデルの最終応答の包みで、本文と区別できない
+_BODY_EVENT_TYPES = frozenset({"tool_result", "result", "assistant", "user"})
 # stdout が JSON のイベントの stream のランタイム。モデルの発言は JSON の文字列の中にだけあり、JSON でない行は CLI の出力
 # である。Devin（devin -p）はモデルの発言を平文で stdout に書き、コードブロックの中のログの例も行頭から始まるので、
 # 行の形ではランタイムの診断と区別できない（#212、PR #237 のサイクル 2）
@@ -1832,6 +1885,10 @@ def read_log_tail(path: Path | None, attempt: Attempt, output_dir: Path) -> tupl
 
     停止を確認できない試行（生きた書き手が差し替えうる）、``sensitive_paths``、このレビューの runner の出力の外、
     symlink・特殊ファイルは読まない。上限を超えたら末尾だけを読み、理由に ``partial`` を返す。
+
+    出力への所属は絶対パスの字句上で検証し（``..`` は拒否）、root から各祖先を ``O_DIRECTORY | O_NOFOLLOW`` と
+    ``dir_fd`` で順に開いて fd で固定する。途中で祖先が symlink に差し替えられても辿らず、最後のファイルは
+    ``O_NOFOLLOW | O_NONBLOCK`` で開く。祖先の ELOOP/ENOTDIR は ``not_regular_file``。fd は全経路で閉じる。
     """
     if path is None:
         return None, "not_recorded"
@@ -1839,16 +1896,25 @@ def read_log_tail(path: Path | None, attempt: Attempt, output_dir: Path) -> tupl
         return None, "not_stopped"
     if any(path == item or path.is_relative_to(item) for item in attempt.sensitive_paths):
         return None, "sensitive"
+    absolute, output_absolute = path.absolute(), output_dir.absolute()
+    if ".." in absolute.parts or ".." in output_absolute.parts or not absolute.is_relative_to(output_absolute):
+        return None, "outside_output"
     try:
-        if not path.resolve().is_relative_to(output_dir.resolve()):
-            return None, "outside_output"
-        descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        # 最終要素だけの O_NOFOLLOW では親ディレクトリの symlink を通ってしまう。各ディレクトリを fd で固定し、
+        # 全要素を symlink をたどらずに開く。開けなかったときも、すでに開いた fd は finally で閉じる
+        parent_fd = os.open(absolute.anchor, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        try:
+            for component in absolute.parts[1:-1]:
+                child_fd = os.open(component, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=parent_fd)
+                os.close(parent_fd)
+                parent_fd = child_fd
+            descriptor = os.open(absolute.name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=parent_fd)
+        finally:
+            os.close(parent_fd)
     except FileNotFoundError:
         return None, "missing"
     except OSError as error:
-        return None, "not_regular_file" if error.errno == errno.ELOOP else "unreadable"
-    except RuntimeError:
-        return None, "unreadable"
+        return None, "not_regular_file" if error.errno in (errno.ELOOP, errno.ENOTDIR) else "unreadable"
     try:
         with os.fdopen(descriptor, "rb") as stream:
             size = os.fstat(stream.fileno())
@@ -1864,7 +1930,8 @@ def read_log_tail(path: Path | None, attempt: Attempt, output_dir: Path) -> tupl
 
 
 def _failure_event(event: dict[str, object]) -> bool:
-    """stdout の JSON のイベントが失敗の経路か。ツールの出力・モデルの本文のイベントは数えない。"""
+    """stdout の JSON のイベントが失敗の報告か。is_error が true のツールの出力も報告には数えるが、
+    その文を分類に使うかは ``_event_error_text`` が別に決める。"""
     kind, subtype = event.get("type"), event.get("subtype")
     return (
         (isinstance(kind, str) and ("error" in kind.lower() or "fail" in kind.lower()))
@@ -1891,20 +1958,59 @@ def _latest_assistant(event: dict[str, object]) -> dict[str, object] | None:
     return latest
 
 
-def diagnostic_text(stdout: str | None, stderr: str | None, *, prose: bool) -> tuple[str, bool]:
+def _event_error_text(event: dict[str, object]) -> str:
+    """失敗のイベントから使う、安全な CLI のエラー欄だけの文。文字列の ``message`` と、文字列の ``error`` か
+    ``error.message`` をすべて使う（``message`` があるだけで本物の ``error.message`` を捨てない）。
+
+    ツールの出力・モデルの本文のイベント（``_BODY_EVENT_TYPES``）は ``is_error`` が true でも ``message`` などの
+    本文の欄は使わない。このうち CLI が失敗の報告を付けるのは assistant だけ（Claude Code が付ける
+    ``authentication_failed``・``rate_limit`` などの失敗の列挙値）なので、その ``error`` 欄だけ使う。
+    tool_result・user・result の ``error`` 欄はツールの出力・会話の本文で CLI の失敗の報告ではないので使わない。
+    ``result``・``content`` は失敗のイベント（``is_error`` が true）でもモデルの最終応答と区別できないので使わない。
+    安全な欄が無ければ空の文を返す（失敗の報告の事実は別に数える）。
+    """
+    kind = event.get("type")
+    name = kind.lower() if isinstance(kind, str) else ""
+    parts: list[str] = []
+    if name not in _BODY_EVENT_TYPES:
+        message = event.get("message")
+        if isinstance(message, str):
+            parts.append(message)
+    elif name != "assistant":
+        return ""
+    error = event.get("error")
+    if isinstance(error, str):
+        parts.append(error)
+    elif isinstance(error, dict):
+        inner = cast(dict[str, object], error).get("message")
+        if isinstance(inner, str):
+            parts.append(inner)
+    return "\n".join(parts)
+
+
+def diagnostic_text(stdout: str | None, stderr: str | None, *, prose: bool, successful: bool) -> tuple[str, bool]:
     """原因の分類に使う文と、stdout に試行を終わらせた失敗の報告があったか。
 
-    文は stderr の全体と、stdout の失敗のイベント・診断の行と、stream の中で最後に現れた assistant のメッセージが失敗で
-    終わっていれば（pi の ``stopReason`` が ``error``）その ``errorMessage``。pi は提供元の失敗をこの形にだけ書き、
-    終了コード 0 で終わる。最後のメッセージは agent_end の履歴の行（1 MiB を超えうる）の前の message_end にもある。
-    担当が自動の再試行で回復した一時的な失敗（再試行の通知と、再試行の前の失敗）は使わず、再試行を使い切った・
-    取り消した通知（``success`` が false）だけを、その ``finalError`` で数える。モデルの本文・ツールの出力・プロンプト
-    は、レビュー対象のコードや PR の本文として認証・接続などの語を含みうるので使わない（各 adapter が状態の分類に、
+    成功した試行（``successful`` は runner の ``attempt.state == "success"``。``reported_state`` は根拠にしない）は
+    分類の文を空で返し、失敗の原因は付けない。
+
+    文は stderr の全体と、stdout の失敗のイベントの安全な CLI のエラー欄（``_event_error_text``。JSON 全体や
+    ``result``・``content`` は使わず、tool_result・result・assistant・user の出力と本文のイベントは本文の欄を使わず、
+    CLI が失敗の報告を付ける assistant だけその ``error`` 欄を使う）と、診断の行と、stream の中で最後に
+    現れた assistant のメッセージが失敗で終わっていれば（pi の ``stopReason`` が ``error``）その ``errorMessage``。
+    pi は提供元の失敗をこの形にだけ書き、終了コード 0 で終わる。最後のメッセージは agent_end の履歴の行
+    （1 MiB を超えうる）の前の message_end にもある。失敗の報告があっても安全に取り出せる文が無いときは、
+    報告の事実だけを数えて文は空にし、``response_extraction`` と推測しない。担当が自動の再試行で回復した
+    一時的な失敗（再試行の通知と、再試行の前の失敗）は使わず、再試行を使い切った・取り消した通知
+    （``success`` が false）だけを、その ``finalError`` で数える。モデルの本文・ツールの出力・プロンプトは、
+    レビュー対象のコードや PR の本文として認証・接続などの語を含みうるので使わない（各 adapter が状態の分類に、
     回復した失敗とモデルの本文を使わないのと同じ。#212）。
 
     ``prose`` は stdout がモデルの発言の平文（Devin）か、ランタイムが分からないとき。その stdout は文にせず、
     失敗の報告に見える行があることだけを返す（報告の有無を判定できないので、応答の取り出しの失敗と推測させない）。
     """
+    if successful:
+        return "", False
     reported: list[str] = []
     final: str | None = None
     for line in (stdout or "").split("\n"):
@@ -1922,7 +2028,7 @@ def diagnostic_text(stdout: str | None, stderr: str | None, *, prose: bool) -> t
                 error = mapping.get("finalError")
                 reported.append(error if isinstance(error, str) else "")
         elif _failure_event(mapping):
-            reported.append(line)
+            reported.append(_event_error_text(mapping))
         elif (message := _latest_assistant(mapping)) is not None:
             error = message.get("errorMessage")
             failed = message.get("stopReason") == "error"
@@ -1976,6 +2082,7 @@ def diagnose_attempt(attempt: Attempt, output_dir: Path, *, runtime: str | None)
     """1 回の試行の診断。ログは ``read_log_tail`` の条件でだけ読み、読んだ文は分類にだけ使う。
 
     ``runtime`` は担当の設定のランタイム（分からなければ None）。JSON のイベントの stream でない stdout は照合の文にしない。
+    成功した試行（``state == "success"``）は分類の文を空にして unknown のままにする（``reported_state`` は根拠にしない）。
     承認待ちの payload はモデルの回答ではなく adapter が実際に使った判定根拠なので、検証済みの項目だけを
     ``approval`` に保存し、原因の分類では既存の認証優先を維持する。
     """
@@ -1993,7 +2100,9 @@ def diagnose_attempt(attempt: Attempt, output_dir: Path, *, runtime: str | None)
     # stdout・stderr を両方とも丸ごと読めたときだけ、失敗の報告の有無を観測したとみなす。末尾だけを読んだログ（partial）は、
     # 切れた行に試行を終わらせた失敗が隠れうる
     observed = "stdout" not in unavailable and "stderr" not in unavailable
-    text, reported = diagnostic_text(stdout, stderr, prose=runtime not in _EVENT_STREAM_RUNTIMES)
+    text, reported = diagnostic_text(
+        stdout, stderr, prose=runtime not in _EVENT_STREAM_RUNTIMES, successful=attempt.state == "success"
+    )
     approval = approval_evidence(attempt, runtime)
     cause = classify_cause(text, attempt, reported=reported, observed=observed)
     # 承認根拠は保存するが、既存の分類が認証を示すときは認証を優先する。認証の復旧に必要な診断を、
@@ -2450,6 +2559,10 @@ def finish(
         run.result = RunResult(
             outcome="stopped", ended_by="abort", stop_reason=abort, merged=merged, cycles=len(existing)
         )
+        if run.aborted_at is None:
+            run.aborted_at = now()
+        # その後の資源未確認で held へ進んでも、最初に受理した abort の時刻を失わないように先に保存する
+        save_run(run_dir, run)
     elif run.result is None:
         raise LoopError(3, "state", "run はまだ終わっていない。サイクルの途中で止めるときは --abort を付ける")
     unconfirmed = audit_resources(run, existing)
@@ -2476,6 +2589,191 @@ def finish(
         "lock_released": released,
         "retained": [resource.path for resource in run.resources if resource.state == "retained"],
     }
+
+
+# --- マージ後 abort の照合（reconcile） ----------------------------------------------------------------------------
+
+# gh の 404 の応答（HTTP 404: Not Found ... / gh: Not Found (HTTP 404)）。reconcile の入口だけで、
+# 一覧取得後に消えた単一コメントを対象の食い違い（4）にする。ほかの取得失敗の分類は変えない
+_NOT_FOUND = re.compile(r"\bHTTP 404\b")
+
+
+def _reconcile_cycle(run: RunRecord, existing: Sequence[CycleRecord]) -> CycleRecord:
+    """照合の対象は、最後のサイクルの計画中に abort で終了した run だけ。"""
+    if (
+        run.state != "ended"
+        or run.result is None
+        or run.result.outcome != "stopped"
+        or run.result.ended_by != "abort"
+        or not existing
+        or existing[-1].state != "planning"
+        or existing[-1].planning is not None
+        or run.result.cycles != len(existing)
+        or any(cycle.run_id != run.run_id or cycle.cycle != number for number, cycle in enumerate(existing, start=1))
+    ):
+        raise LoopError(3, "state", "照合の対象は、最後のサイクルの計画中に abort で終了した run だけ")
+    return existing[-1]
+
+
+def _reconciled_result(cycle: int) -> RunResult:
+    return RunResult(outcome="no_fix_needed", ended_by="outcome", stop_reason=None, merged=True, cycles=cycle)
+
+
+def _check_reconcile_times(
+    run: RunRecord, cycle: CycleRecord, *, created_at: object, updated_at: object, merged_at: object
+) -> None:
+    values = [cycle.started_at, created_at, updated_at, merged_at, run.aborted_at]
+    if any(not isinstance(value, str) for value in values):
+        raise LoopError(4, "record_inconsistent", "照合にはコメント・マージ・元の中断の日時が要る")
+    try:
+        times = [datetime.fromisoformat(cast(str, value)) for value in values]
+    except ValueError as error:
+        raise LoopError(4, "record_inconsistent", "照合対象の日時を読み取れない") from error
+    if any(value.utcoffset() is None for value in times):
+        raise LoopError(4, "record_inconsistent", "照合対象の日時にはタイムゾーンが要る")
+    started, created, updated, merged, aborted = times
+    # 元の記録と GitHub は秒単位。同じ秒の中断と最終化は順序を確定できないので受け付けない
+    if not (started <= created <= updated < aborted and created <= merged < aborted):
+        raise LoopError(4, "record_inconsistent", "コメントとマージが対象サイクルの中断前に完了していない")
+
+
+def _read_reconciliation(run_dir: Path, run: RunRecord, existing: Sequence[CycleRecord]) -> Reconciliation:
+    """保存済みの照合証拠を、元の run・サイクルと照らし直して読む。不整合は 4 で止める。"""
+    try:
+        saved = read_model(run_dir / "reconcile.json", Reconciliation)
+        cycle = _reconcile_cycle(run, existing)
+    except LoopError as error:
+        raise LoopError(4, "record_inconsistent", "照合結果または元の中断記録を読み取れない") from error
+    if (
+        saved.run_id != run.run_id
+        or saved.pr != run.pr
+        or saved.cycle != cycle.cycle
+        or saved.head != cycle.head
+        or saved.round <= cycle.prior_round
+        or saved.run_sha256 != sha256_file(run_dir / "run.json")
+        or saved.cycle_sha256 != sha256_file(cycle_path(run_dir, cycle.cycle))
+        or saved.result != _reconciled_result(cycle.cycle)
+    ):
+        raise LoopError(4, "record_inconsistent", "照合結果と元の PR・run・サイクルが一致しない")
+    # 保存済みの finalize 結果も証拠の一部。reconcile が受け付ける成功結果と同じ条件を再検証する
+    finalize = saved.finalize.result
+    comment = finalize.get("comment")
+    posted_id = cast(dict[str, Any], comment).get("comment_id") if isinstance(comment, dict) else None
+    if (
+        finalize.get("outcome") != "no_fix_needed"
+        or finalize.get("merged") is not True
+        or type(posted_id) is not int
+        or posted_id != saved.comment_id
+        or finalize.get("spec_commit") not in (None, saved.head)
+    ):
+        raise LoopError(4, "record_inconsistent", "保存済みの finalize 結果が照合の証拠と一致しない")
+    _check_reconcile_times(
+        run, cycle, created_at=saved.comment_created_at, updated_at=saved.comment_updated_at, merged_at=saved.merged_at
+    )
+    return saved
+
+
+def reconcile(
+    run_dir: Path, *, finalize_result: Path, comment_id: int, github: GitHub | None = None
+) -> dict[str, Any]:
+    """マージ後に abort した run を、GitHub の読み取りだけの照合で確定し、別ファイルへ追記する。
+
+    新規コメント・マージ・push・Issue 更新・資源回収はしない。証拠がすべて一致したときだけ
+    reconcile.json を排他的に新規作成し、元の run・サイクルの記録は書き換えない。
+    """
+    run = load_run(run_dir)
+    cycle = _reconcile_cycle(run, load_cycles(run_dir))
+    lock = read_lock(Path(run.review_dir))
+    if lock is not None:
+        raise LoopError(
+            3,
+            "lock_held",
+            f"run {lock.run_id} のロックがあるため照合しない",
+            next_command=command("status", "--run", lock.run_dir),
+        )
+    if type(comment_id) is not int or comment_id <= 0:
+        raise LoopError(2, "arguments", "--comment-id には投稿済みコメントの正の ID が要る")
+    result = _read_finalize(finalize_result)
+    comment = result.get("comment")
+    posted_id = cast(dict[str, Any], comment).get("comment_id") if isinstance(comment, dict) else None
+    if (
+        result["outcome"] != "no_fix_needed"
+        or result["merged"] is not True
+        or type(posted_id) is not int
+        or posted_id != comment_id
+    ):
+        raise LoopError(4, "record_inconsistent", "finalize の成功結果と指定コメントが一致しない")
+    # spec_commit が別の HEAD をマージした run は対象外（既存 cycle_end の許容は変えず、HEAD 条件を緩めない）
+    if result.get("spec_commit") not in (None, cycle.head):
+        raise LoopError(4, "merge_mismatch", "finalize の spec_commit はサイクルの HEAD と違うため照合しない")
+    github = github or GitHub()
+    pull = github.pull(run.pr.repository, run.pr.number)
+    if not pull.merged or pull.head_sha != cycle.head:
+        raise LoopError(4, "merge_mismatch", "PR のマージ済み状態または HEAD が元のサイクルと一致しない")
+    comments, state, login = _read_records(github, run)
+    # 対象 ID の一覧への所属確認を単一取得より先に行う（存在しない・別 PR の ID は単一取得の前に拒否する）
+    if not any(entry["comment_id"] == comment_id for entry in cast(list[dict[str, Any]], state["rounds"])):
+        raise LoopError(4, "record_missing", "指定コメントは対象 PR で採用された判断の記録ではない")
+    try:
+        posted = github.comment(run.pr.repository, comment_id)
+    except LoopError as error:
+        if error.code == 5 and _NOT_FOUND.search(error.reason):
+            raise LoopError(4, "record_missing", "指定コメントが消えている（単一取得が 404）") from error
+        raise
+    if posted.get("issue_url") != f"https://api.github.com/repos/{run.pr.repository}/issues/{run.pr.number}":
+        raise LoopError(4, "record_inconsistent", "単一コメントが対象の PR に属していない")
+    user = posted.get("user")
+    if not isinstance(user, dict) or cast(dict[str, Any], user).get("login") != login:
+        raise LoopError(4, "record_inconsistent", "単一コメントの投稿者が認証済みの login と一致しない")
+    body = next(cast(str, item["body"]) for item in comments if item["id"] == comment_id)
+    # 一覧と単一取得の本文は UTF-8 バイト列として一致させる（日本語・改行・末尾改行を正規化しない）
+    if posted.get("body") != body:
+        raise LoopError(4, "record_inconsistent", "コメントが判断の記録の取得後に変更された")
+    _check_reconcile_times(
+        run, cycle, created_at=posted.get("created_at"), updated_at=posted.get("updated_at"), merged_at=pull.merged_at
+    )
+    try:
+        record = cast(dict[str, Any] | None, records.extract_record(body))
+        if (
+            record is None
+            or record["pr"] != run.pr.key()
+            or record["reviewed_head"] != cycle.head
+            or record["round"] <= cycle.prior_round
+            or record["outcome"] != "no_fix_needed"
+        ):
+            raise LoopError(4, "record_inconsistent", "指定コメントがこのサイクルの成功記録ではない")
+        prior = records.read_state(
+            comments, expected_pr=run.pr.key(), exclude_comment_ids=[comment_id], trusted_login=login
+        )
+        records.check_against(record, prior)
+    except records.RecordError as error:
+        raise LoopError(4, "record_inconsistent", "; ".join(error.problems)[:600]) from error
+    evidence = Reconciliation(
+        run_id=run.run_id,
+        pr=run.pr,
+        cycle=cycle.cycle,
+        head=cycle.head,
+        run_sha256=sha256_file(run_dir / "run.json"),
+        cycle_sha256=sha256_file(cycle_path(run_dir, cycle.cycle)),
+        finalize=FinalizePart(result_file=str(finalize_result.resolve()), result=result, round_dir=None),
+        finalize_sha256=sha256_file(finalize_result),
+        comment_id=comment_id,
+        comment_sha256=hashlib.sha256(body.encode("utf-8")).hexdigest(),
+        comment_created_at=cast(str, posted["created_at"]),
+        comment_updated_at=cast(str, posted["updated_at"]),
+        merged_at=cast(str, pull.merged_at),
+        round=cast(int, record["round"]),
+        result=_reconciled_result(cycle.cycle),
+        reconciled_at=now(),
+    )
+    try:
+        write_json(run_dir / "reconcile.json", evidence, exclusive=True)
+    except FileExistsError:
+        # 同じ証拠（reconciled_at を除く）なら元のファイルを保持する。違えば上書きしない
+        saved = _read_reconciliation(run_dir, run, load_cycles(run_dir))
+        if saved.model_dump(exclude={"reconciled_at"}) != evidence.model_dump(exclude={"reconciled_at"}):
+            raise LoopError(4, "record_inconsistent", "既存の照合結果と証拠が違うため上書きしない") from None
+    return status(run_dir)
 
 
 def _next_step(run: RunRecord, existing: Sequence[CycleRecord], run_dir: Path) -> list[str] | None:
@@ -2521,7 +2819,7 @@ def status(
     run = load_run(run_dir)
     lock = read_lock(Path(run.review_dir))
     existing = load_cycles(run_dir)
-    return {
+    output: dict[str, Any] = {
         "status": "ok",
         "run_id": run.run_id,
         "run_dir": str(run_dir),
@@ -2532,7 +2830,16 @@ def status(
         "result": run.result.model_dump(mode="json") if run.result else None,
         "cycles": [_cycle_summary(cycle) for cycle in existing],
         "next": _next_step(run, existing, run_dir),
+        "reconciled": None,
     }
+    if (run_dir / "reconcile.json").exists():
+        # 保存済み証拠を元記録と再検証し、論理上の結果だけを切り替える（元の run.json は書き換えない）
+        saved = _read_reconciliation(run_dir, run, existing)
+        output["original_result"] = output["result"]
+        output["result"] = saved.result.model_dump(mode="json")
+        output["reconciled"] = saved.model_dump(mode="json")
+        output["cycles"][-1].update(state="ended", outcome=saved.result.outcome, round=saved.round)
+    return output
 
 
 # --- CLI ----------------------------------------------------------------------------------------------------------
@@ -2590,6 +2897,12 @@ def parser() -> argparse.ArgumentParser:
     rescue = commands.add_parser("recover")
     rescue.add_argument("--run", type=Path, required=True)
     rescue.add_argument("--operator-confirmed-stopped", help="停止を確かめた事実（記録に残す）")
+    match = commands.add_parser(
+        "reconcile", help="マージ後に abort した run の証拠を読み取りだけで照合し、reconcile.json を追記する"
+    )
+    match.add_argument("--run", type=Path, required=True)
+    match.add_argument("--finalize-result", type=Path, required=True)
+    match.add_argument("--comment-id", type=int, required=True, help="finalize の結果の comment.comment_id（正整数）")
     return root
 
 
@@ -2640,6 +2953,8 @@ def dispatch(args: argparse.Namespace) -> dict[str, Any]:
         return review(args.run.resolve())
     if name == "recover":
         return recover(args.run.resolve(), operator_confirmed_stopped=args.operator_confirmed_stopped)
+    if name == "reconcile":
+        return reconcile(args.run.resolve(), finalize_result=args.finalize_result, comment_id=args.comment_id)
     raise LoopError(2, "arguments", f"未対応のサブコマンド: {name}")
 
 

@@ -298,7 +298,9 @@ def test_review_records_partial_failure_and_cleans_owned_worktrees(loop: Any, en
     assert [item["agent"] for item in reviewed["accepted"]] == ["alpha"]
     assert [item["agent"] for item in reviewed["rejected"]] == ["beta"]
     assert reviewed["next"][-3:] == ["cycle-end", "--run", str(run_dir)]
+    # 保護しない checkout の変化は警告として受け取り、致命にしない（runner の記録をそのまま渡す）
     cycle = read(run_dir / "cycle-1.json")
+    assert reviewed["unprotected_changes"] == cycle["review"]["batch"]["unprotected_changes"]
     assert cycle["state"] == "planning"
     beta = next(item for item in cycle["review"]["reviewers"] if item["actual_agent"] == "beta")
     assert beta["verdict"] == "rejected" and beta["active_findings"] is None

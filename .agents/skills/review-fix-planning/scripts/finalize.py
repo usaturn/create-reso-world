@@ -470,6 +470,8 @@ def finalize(
             # マージ後は投稿helperが拒否し、記録を足せない。PR上の記録と食い違う結果を返さない。
             if posted_record(comments, existing) != checked:
                 raise Stop("external: PR上の記録が渡したno_fix_needed記録と一致しない（無いを含む）ままマージされた")
+            # 照合済みの記録コメントを特定できるIDを返す（loopのreconcileが証拠として使う）
+            result["comment"] = {"comment_id": existing}
         else:
             if spec_commit is not None and posted_record(comments, existing) != checked:
                 # Specのcommitを載せたPRのheadは検証したHEADと違うので、ここでは記録を投稿できない。

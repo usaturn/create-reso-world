@@ -15,6 +15,7 @@ reviews/<owner>/<repo>/#<PR>-<ブランチ>/
     └── <run_id>/
         ├── run.json                # run の設定・割り当て・状態・結果・資源
         ├── cycle-<n>.json          # サイクルごとの記録
+        ├── reconcile.json          # マージ後 abort の照合証拠（reconcile が追記したときだけ。3.1 節）
         └── cycle-<n>/
             ├── comments.json       # レビュアーに渡した PR の全コメント（gh api --paginate --slurp の出力）
             ├── after-run-<i>.stdout.log・after-run-<i>.stderr.log  # 後処理（after_run）のログの写し（再実行は rerun- を付ける）
@@ -52,6 +53,7 @@ reviews/<owner>/<repo>/#<PR>-<ブランチ>/
 | `options` | `max_cycles`、`assign`（`--assign` の値）、`template`、`config`、`fresh_review` |
 | `assignments` | 読み込んだ設定の有効な割り当て。`review.inspect` と `fix.implement`・`fix.self-review`・`fix.fix-check`（`agents`・`fallback`） |
 | `started_at`・`ended_at` | 時刻 |
+| `aborted_at` | `finish --abort` が abort の結果を受理した時刻（初回だけ保存）。この項目より前に作った run には無い。推測で補わない（3.1 節） |
 | `state` | `running`・`ended`・`held`（停止を確認できない試行・後処理があり、ロックを保持）・`abandoned`（結果の無いまま回収した） |
 | `result` | `{"outcome", "ended_by", "stop_reason", "merged", "cycles"}`。`outcome` は `fixes_pushed`・`no_fix_needed`・`stopped`、`ended_by` は `outcome`・`cycle_limit`・`abort`。`merged` は `true`・`false`・`null`（`null` は `finish --abort` だけが書く未確認。6 章） |
 | `resources` | `[{"path", "kind": "runner_output", "cycle", "state", "reason"}]`。`state` は `created`（未回収）・`removed`・`retained`（消さずに残した）。`retained` の `reason` は、外せない worktree・秘密が残りうるファイル・runner の結果が無い、または失敗した担当の診断を保存できなかった（4.1 節）など |
@@ -60,15 +62,47 @@ reviews/<owner>/<repo>/#<PR>-<ブランチ>/
 
 移植元の `options.hold_action` は無い。移植先の review-fix-planning には判断保留が無いので、`start` は `--hold-action` を受け付けない。
 
-`herdr_pane` の `state` は次のどれかで、`start` の出力の `herdr_pane` にも同じ値を返す。`label` は `PR#<番号>`（番号は GitHub が返した PR の番号。リポジトリ名は付けない）。
+`herdr_pane` の `state` は次のどれかで、`start` の出力の `herdr_pane` にも同じ値を返す。`label` は `--issue-number` があれば `<repo>:#<Issue番号>`（repo 部分は `--issue-repository` があればその repo、無ければ解決済み PR の `owner/repo` の repo 部分）、無ければ `PR#<番号>`（番号は GitHub が返した PR の番号）。例: `create-reso-world:#356`（Issue が PR と同じ repo）、`resoloop:#42`（`--issue-repository usaturn/resoloop`）、`PR#900`（`--issue-number` なし）。
 
 | `state` | 意味 | `pane_id` | `reason` |
 | --- | --- | --- | --- |
-| `renamed` | `herdr pane rename <HERDR_PANE_ID> PR#<番号>` が終了コード 0 で終わった | `HERDR_PANE_ID` | `null` |
+| `renamed` | `herdr pane rename <HERDR_PANE_ID> <label>` が終了コード 0 で終わった | `HERDR_PANE_ID` | `null` |
 | `skipped` | `HERDR_ENV` が `1` ではない、または `HERDR_PANE_ID` が空なので、`herdr` を呼ばなかった | `null` | 呼ばなかった理由 |
 | `failed` | `herdr` が無い、0 以外で終わった、または期限（10 秒）までに終わらなかった | `HERDR_PANE_ID` | 失敗の理由（`start` の `warnings` にも入る） |
 
 名前を変えるのは、`start` がロックを取って `run.json` を保存した後だけである。`start` が失敗する場合は `herdr` を呼ばない。`failed` でも `start` は成功し、run はロックを持ったまま続く。
+
+### 3.1 マージ後 abort の照合（`reconcile.json`）
+
+finalize.py がマージを観測した後に `cycle-end` が GitHub の失敗などで完了できず、`finish --abort` で run を終えたとき、`reconcile --run <run_dir> --finalize-result <file> --comment-id <正整数>` で証拠を読み取りだけで照合し、このファイルを追記する。新規コメント・マージ・push・Issue 更新・資源回収はしない。元の `run.json`・サイクル JSON・abort 結果は書き換えない。
+
+対象は、`state=ended`・`result` が `stopped`/`ended_by: abort`・最後のサイクルが `planning` で計画の結果が未保存・run_id とサイクル数が整合する run だけである。active/held・サイクルが完了した run は終了コード 3（`state`）、PR のロックがあれば 3（`lock_held`）で拒否する。
+
+照合は次のすべてを満たすときだけ成功する。不一致は終了コード 4（`record_inconsistent`・`record_missing`・`merge_mismatch`）で、証拠を上書きしない。
+
+- finalize 結果の `outcome` が `no_fix_needed`、`merged` が厳密に `true`、`comment.comment_id` が指定 ID と一致する（bool を ID として受け付けない）。`spec_commit` がサイクルの HEAD と違う結果は受け付けない（下記）。
+- PR がマージ済みで、PR の `head_sha` がサイクルの `head` と完全一致する。
+- 全ページのコメントと認証 login を読み、対象 ID がこの PR の採用された判断記録に含まれることを先に確かめる。その後に単一コメントを repository 固定で再取得し、ID・PR 所属（`issue_url`）・投稿者の login が認証 login と一致することを確かめる（OWNER 等の association では代用しない）。存在しない・別 PR の ID は 4。一覧取得後に単一コメントが 404 になった場合も 4 で、通信・認証・5xx 等の基盤の失敗は 5。
+- 一覧で読んだ本文と単一取得の本文は UTF-8 バイト列として一致する（日本語・改行・末尾改行を正規化しない）。記録の `pr` は repo 修飾 key、`reviewed_head` はサイクルの HEAD、`round` は `prior_round` より後、`outcome` は `no_fix_needed`。対象コメントを除いた先行記録を認証 login 付きで照合する。
+- 日時はタイムゾーン付きで、`cycle.started_at <= comment.created_at <= updated_at < aborted_at` かつ `created_at <= merged_at < aborted_at` を満たす。コメント日時は単一取得の生応答、`merged_at` は PR の応答から読む。同じ秒で前後を確定できない場合・必要情報の欠落は成功にしない（abort 後に作られた証拠で元の中断を成功扱いしない）。
+
+`reconcile.json` の形（`pr-review-fix-loop/v1`・`kind: reconcile`）:
+
+| キー | 値 |
+| --- | --- |
+| `run_id`・`pr`・`cycle`・`head`・`round` | 照合した対象 |
+| `run_sha256`・`cycle_sha256` | 照合時の `run.json`・`cycle-<n>.json` の SHA-256 |
+| `finalize`・`finalize_sha256` | finalize 結果の内容（`result_file`・`result`・`round_dir`）と、結果ファイルの元バイト列の SHA-256 |
+| `comment_id`・`comment_sha256` | 対象コメントの ID と、本文（UTF-8）の SHA-256 |
+| `comment_created_at`・`comment_updated_at`・`merged_at` | 単一取得・PR の応答の日時 |
+| `result` | 論理上の結果（`no_fix_needed`・`ended_by: outcome`・`merged: true`） |
+| `reconciled_at` | 照合した時刻 |
+
+公開は排他的な新規作成だけで、既存のパスを上書きしない。同じ証拠での再実行は `reconciled_at` を除く全項目を既存と比較し、同じなら元のファイルを保持して成功する。異なれば 4 で止め、バイト列を上書きしない。finalize 結果の場所・元バイト列も証拠なので、移動や再整形は同じ証拠とは扱わない。
+
+`reconcile.json` のある `status` は、run/cycle のハッシュ・対象と結果・日時を再検証し、論理上の `result` を `no_fix_needed`/`merged: true` にする。元の abort 結果は `original_result`、照合証拠は `reconciled` に返す（ファイルが無い場合の `reconciled` は null）。再検証に失敗したら `status` も 4（`record_inconsistent`）で止まり、`merged: true` を返さない。
+
+対応しないもの: `aborted_at` の無い旧 run（日時を推測・捏造しない）、`spec_commit` で実際の HEAD がサイクルの HEAD と変わる run（既存 `cycle-end`・finalize の `spec_commit` 許容処理はそのまま維持する）。
 
 ## 4. サイクル（`cycle-<n>.json`）
 
@@ -101,7 +135,7 @@ reviews/<owner>/<repo>/#<PR>-<ブランチ>/
 | `state` | runner の `Result.state` |
 | `attempts[]` | 試行（fallback を含む起動順）ごとに `agent_id`・`state`・`reported_state`（adapter が出力から分類した、adapter と runner が置き換える前の状態。`tools/agent_runner/interfaces.rst`）・`exit_code`・`stop_confirmed`・`elapsed_seconds`・`cause`・`unavailable` |
 
-`cause`（原因の分類）は、試行を終わらせた失敗の報告だけから決める。stderr の全体と、stdout のうち失敗のイベント（`type` に `error`・`fail` を含む、`is_error` が true、`subtype` が `error` で始まる、`error` が空でない）、stream の中で最後に現れた assistant のメッセージ（pi の `message_start`・`message_end`・`turn_end` の `message` と `agent_end` の `messages`）が失敗で終わっていれば（`stopReason` が `error`）その `errorMessage`、JSON でない行のうち行頭（字下げなし）のコロン付き・角括弧付きの診断の行（`Error:`・`fatal:`・`panic:`・`[ERROR]`・`<名前>Error:`・`Traceback (most recent call last)`・`bwrap:` など）を、既知のパターンと上から照合して、最初に当たった分類名である。stdout を照合に使うのは、stdout が JSON のイベントの stream の担当（設定のランタイムが `claude-code`・`codex`・`cursor`・`pi`）だけである。Devin（`devin -p`）はモデルの発言を平文で stdout に書き、コードブロックの中のログの例も行頭から始まるので、Devin と設定からランタイムが分からない担当の stdout は照合の文にしない（stderr は使う）。その stdout に失敗の報告に見える行（診断の行・失敗のイベントなど）があれば、報告の有無を判定できないので `response_extraction` と推測しない。担当が自動の再試行で回復した一時的な失敗は使わない: 再試行の通知（`type` か `subtype` に `retry` を含むイベント。Claude Code の `system/api_retry`、pi の `auto_retry_start`・`auto_retry_end`）は失敗にせず、再試行を使い切った・取り消した通知（`success` が false）だけを、その `finalError` で数える。pi の再試行の前の失敗（後に別の assistant のメッセージが続く失敗メッセージ）も使わない。照合した文字列は残さない。モデルの本文・ツールの出力・プロンプトは使わない（レビュー対象のコードや PR の本文が認証・接続などの語を含みうる）。HTTP の状態コードは `HTTP`・`status`・`error code` などに続くときだけ数える。各ログは末尾から 64 MiB までを読む（pi の `agent_end` は会話の履歴全体を 1 行に含み、1 MiB を超える）。
+`cause`（原因の分類）は、試行を終わらせた失敗の報告だけから決める。成功した試行（`state` が `success`）に失敗の原因は付けない: 分類の文は空で、`cause` は `unknown` である。`reported_state`（adapter の分類）は成功の根拠にしない。分類の文は、stderr の全体と、stdout のうち失敗のイベント（`type` に `error`・`fail` を含む、`is_error` が true、`subtype` が `error` で始まる、`error` が空でない）の安全な CLI のエラー欄（文字列の `message` と、文字列の `error` または `error.message` のすべて。`message` があるだけで `error.message` を捨てない）だけと、stream の中で最後に現れた assistant のメッセージ（pi の `message_start`・`message_end`・`turn_end` の `message` と `agent_end` の `messages`）が失敗で終わっていれば（`stopReason` が `error`）その `errorMessage`、JSON でない行のうち行頭（字下げなし）のコロン付き・角括弧付きの診断の行（`Error:`・`fatal:`・`panic:`・`[ERROR]`・`<名前>Error:`・`Traceback (most recent call last)`・`bwrap:` など）である。失敗のイベントの JSON 全体は分類に流さない。ツールの出力・モデルの本文のイベント（`tool_result`・`result`・`assistant`・`user`）は、`is_error` が true でも `message` などの本文の欄を分類に使わない（失敗の報告の事実は数える）。このうち CLI が失敗の報告を付けるのは assistant だけで、その `error` 欄（文字列の `error` または `error.message`。Claude Code が付ける `authentication_failed`・`rate_limit` などの失敗の列挙値）だけ使う。`tool_result`・`user`・`result` の `error` 欄はツールの出力・会話の本文で CLI の失敗の報告ではないので使わない。`result`・`content` は、`type=result` かつ `is_error=true` でもモデルの最終応答と区別できないので使わない。失敗の報告があっても安全に取り出せる文が無いときは、報告の事実だけを数え（文は空）、`response_extraction` と推測しない。これらを既知のパターンと上から照合して、最初に当たった分類名である。stdout を照合に使うのは、stdout が JSON のイベントの stream の担当（設定のランタイムが `claude-code`・`codex`・`cursor`・`pi`）だけである。Devin（`devin -p`）はモデルの発言を平文で stdout に書き、コードブロックの中のログの例も行頭から始まるので、Devin と設定からランタイムが分からない担当の stdout は照合の文にしない（stderr は使う）。その stdout に失敗の報告に見える行（診断の行・失敗のイベントなど）があれば、報告の有無を判定できないので `response_extraction` と推測しない。担当が自動の再試行で回復した一時的な失敗は使わない: 再試行の通知（`type` か `subtype` に `retry` を含むイベント。Claude Code の `system/api_retry`、pi の `auto_retry_start`・`auto_retry_end`）は失敗にせず、再試行を使い切った・取り消した通知（`success` が false）だけを、その `finalError` で数える。pi の再試行の前の失敗（後に別の assistant のメッセージが続く失敗メッセージ）も使わない。照合した文字列は残さない。モデルの本文・ツールの出力・プロンプトは使わない（レビュー対象のコードや PR の本文が認証・接続などの語を含みうる）。HTTP の状態コードは `HTTP`・`status`・`error code` などに続くときだけ数える。各ログは末尾から 64 MiB までを読む（pi の `agent_end` は会話の履歴全体を 1 行に含み、1 MiB を超える）。ログの読取は、読む前に停止確認・出力ディレクトリへの所属・`sensitive_paths` を検査する。出力への所属は絶対パスの字句上で検証し、`..` は拒否する。絶対パスの root から各祖先を `O_DIRECTORY | O_NOFOLLOW` と `dir_fd` で順に開いて fd で固定するので、途中で祖先が symlink に差し替えられても辿らず、最後のファイルは `O_NOFOLLOW | O_NONBLOCK` で開く。特殊ファイルは読まない。祖先の ELOOP/ENOTDIR は `not_regular_file` とし、fd は全経路で閉じる。
 
 | `cause` | 意味 |
 | --- | --- |
@@ -113,7 +147,7 @@ reviews/<owner>/<repo>/#<PR>-<ブランチ>/
 | `connection` | 提供元への接続の失敗と、提供元の一時的な障害（5xx・過負荷） |
 | `runtime_error` | ランタイム（CLI）自身の例外・異常終了 |
 | `response_extraction` | ログの照合はどれにも当たらず、stdout・stderr を丸ごと観測でき（`unavailable` に `stdout`・`stderr` が無い。`partial` も観測としない）、停止を確認でき、終了コードが 0 で、試行を終わらせた失敗の報告が無い（失敗のイベント・使い切った再試行・pi の最後の失敗メッセージ・診断の行が無い）のに結果を得られなかった（`reported_state` が `success` でなく、`sensitive_paths` が無い） |
-| `unknown` | 観測したログの照合がどれにも当たらず、`response_extraction` の条件も満たさない。stdout・stderr の一方でも丸ごと観測できなかった（`unavailable` に `stdout`・`stderr` がある）ときは、終了状態から推測しない |
+| `unknown` | 観測したログの照合がどれにも当たらず、`response_extraction` の条件も満たさない。stdout・stderr の一方でも丸ごと観測できなかった（`unavailable` に `stdout`・`stderr` がある）ときは、終了状態から推測しない。成功した試行（`state` が `success`）は常に `unknown` |
 
 `unavailable` は、取得できなかった情報（キーは `stdout`・`stderr`・`exit_code`・`reported_state`）と、その理由である。
 
@@ -122,8 +156,8 @@ reviews/<owner>/<repo>/#<PR>-<ブランチ>/
 | `not_recorded` | runner がログのパスを記録していない |
 | `not_stopped` | 停止を確認できない試行なので読まない（生きた書き手が差し替えうる） |
 | `sensitive` | runner の `sensitive_paths`（その下を含む）にあるので読まない |
-| `outside_output` | このレビューの runner の出力ディレクトリの外なので読まない |
-| `missing`・`not_regular_file`・`unreadable` | ファイルが無い・symlink か特殊ファイル・読めない |
+| `outside_output` | このレビューの runner の出力ディレクトリの外なので読まない（所属は絶対パスの字句上で検証し、`..` は拒否する） |
+| `missing`・`not_regular_file`・`unreadable` | ファイルが無い・symlink か特殊ファイル（祖先の symlink・ELOOP/ENOTDIR を含む）・読めない |
 | `partial` | 64 MiB を超えたので末尾だけを読んだ。読んだ部分は照合に使うが、切れた行に最後の失敗が隠れうるので `response_extraction` の推測には観測としない |
 | `not_observed` | `exit_code`・`reported_state` が null |
 
@@ -153,4 +187,6 @@ reviews/<owner>/<repo>/#<PR>-<ブランチ>/
 - `review.reviewers[].identity` は runner の事後の観測、`reviewer` は pr-review が成果に記録した値で、同じとは限らない。未観測の値を設定から補わない。
 - `cycle-end` が保存する `merged`（`planning.merged` と、そのときの `result.merged`）は、`cycle-end` が読んだ PR の実際のマージ状態である。結果が `no_fix_needed` になるのは、finalize の結果の `merged` が `true` で、PR がマージ済みで、PR の head が finalize の結果の `spec_commit`（create-reso-world の PR の結論 2 の、Spec だけの commit）と、無ければサイクルの HEAD と同じときだけで、食い違えば `merge_mismatch` で止まる。finalize が `stopped` のときは、finalize の `merged`（`false`・`null`。`null` は確かめられていない）で上書きせず、PR の実際の状態を保存する。別の head のマージも `stopped` のままで、停止理由は finalize のものである。finalize が `true` なのに PR が未マージなら `merge_mismatch`。判断の記録が `stopped`（finalize を呼ばない）のときも、PR の実際の状態を保存する。finalize の結果そのものは `planning.finalize.result` に残る。
 - `finish --abort` が書く `result.merged` は、finalize.py の `merged`（`.agents/skills/review-fix-planning/references/execution.md` 3.4 節）と同じ意味で、最後に観測した PR のマージ状態である。`finish` が PR を読めればその状態を書く。読めなければ `--finalize-result` で渡された finalize の結果の `merged` を書き、渡されていなければ `null`（未確認）を書く。finalize の結果が `true` なのに PR が未マージなら、どちらかの読み取りが誤っているので、abort は止めずに `null` を書く。PR の状態だけで決められなかったときは、理由を `notes` に残す。`null` を未マージとして扱わない（確かめるときは PR を読み直す）。
+- `finish --abort` は abort の結果を受理した時刻を `aborted_at` に初回だけ保存する。その後に資源未確認で `held` へ進んでも同じ値を保持し、`recover` でも更新しない。abort を伴わない `hold()` は時刻を保存しない。
+- `status` の `reconciled` が null でないとき、`result` は照合後の論理結果で、元の abort 結果は `original_result` にある。ディスクの `run.json` は `stopped`/`abort` のままで、`reconcile` は書き換えない（3.1 節）。
 - `recover` は、runner の試行が停止済みでも、その出力で始めた後処理（after_run）の停止を確かめられない資源（後処理の報告が無い、または `stop_confirmed` が true でない報告を含む）を、事実なしには回収しない。停止を確かめた事実を受け取った資源でも、秘密が残りうるファイル（runner の `sensitive_paths`。runner の結果が無いときはディレクトリ全体）を消さずに残し、`retained` に完全パスを書く。
