@@ -53,15 +53,15 @@
 
 **受け入れ基準:** Global Constraints の動作環境・実入力・防御範囲と、その後の Persona・テスト実行禁止の2行を同じ本文で実装担当・Taskレビュアーへ渡す。
 
-- [ ] **Step 1: 変更前の不足と upstream の要求を読む**
+- [x] **Step 1: 変更前の不足と upstream の要求を読む**
   `.pi/APPEND_SYSTEM.md` の現状を読み、3マーカーの案内が無いことを確認する。導入済みロールと upstream の `subagent-driven-development/task-reviewer-prompt.md`、`re-review-prompt.md`、`references/final-review.md`、`requesting-code-review/code-reviewer.md` を照合する。上流 checkout は `/home/vscode/.pi/agent/git/github.com/obra/superpowers/skills/`。
-- [ ] **Step 2: 既存節に最小の案内を追加する**
+- [x] **Step 2: 既存節に最小の案内を追加する**
   単独行の必須マーカーを1依頼1つ、task/re-review/branch の使い分け、テンプレートと証拠、NEEDS_CONTEXT 未実施、文脈補充の同scope再送、レビュー子のテスト禁止優先を加える。各テンプレート名を短い表などで示し、本文全文の複製を避ける。新しいツール引数・制限緩和・他ファイル編集をしない。
-- [ ] **Step 3: 3種類の複数行依頼例を静的に照合する**
+- [x] **Step 3: 3種類の複数行依頼例を静的に照合する**
   日本語の受け入れ条件を含む Task、前回指摘原文と修正 diff の限定再レビュー、全体 diff のブランチレビューを、追加後の指示から組み立てられるか確かめる。例には必要な証拠の種類とレビュー子のテスト実行禁止を含める。例の保存は controller に任せ、tracked ファイルに例や固定テストを追加しない。追加の動作試験用 runner/CLI 起動は禁止。
-- [ ] **Step 4: 既存の関連検査を同期実行する**
+- [x] **Step 4: 既存の関連検査を同期実行する**
   `bash tests/scripts/test-instructions.bash`、`bash scripts/check-layout.sh`、`git diff --check`。すべて終了コード0を確認する。新しい固定文言テストは書かない。
-- [ ] **Step 5: 差分を自己確認し commit する**
+- [x] **Step 5: 差分を自己確認し commit する**
   `git add .pi/APPEND_SYSTEM.md`、`git commit -m "docs: document pi sp-review scope requirements"`。変更点・検証コマンドと終了コード・所要時間・懸念を報告する。指示だけのためTDDの恒久テストは不要。Persona保護の既存テストは F∩S として維持する。
 
 ## 統合担当の検証と公開
@@ -104,6 +104,15 @@
 - 上流テンプレートと既存制約の違いは、既存の安全境界を優先しledgerに記録する。仕様の意味を変える必要がある場合は停止する。
 - 初回の検証で環境前提が異なれば、出力を保存して原因を調べる。既存の失敗を成功扱い・検査削減で回避しない。安全の失敗・停止未確認・担当failedでは全体停止する。
 - base 前進時は所有パスの非重複・未push等のhelper条件を満たす場合だけ追随し、必須検証をすべて再実行する。条件外なら公開せず報告する。
+
+## 実行記録
+
+- Task 1 の BASE `13750f248ed8a114722a5a8556cab46e1d5bd0fc`、実装 `8bb150a0138be3da18cd9e4a0dd69430f62ba416`。依頼1回、requested/actual は `pi_opencode-go_deepseek4-flash_max`、identity `opencode-go/deepseek-v4.1-flash` max、fallbackなし。所要167.55秒（worker158.19秒）、exit0・stop_confirmed=true、accept成功、cleanupのretainedは空。担当自身とcontrollerが指示保護・配置検査・diff --checkを実行しすべてexit0。
+- sp-review の初回Task依頼は `Review scope: task` と、同じbrief・受け入れ基準・report・Task全体diff・上流テンプレートを使用した。Spec compliant / Task quality Approved、Critical/Important/Minorなし、NEEDS_CONTEXTなし。レビュー子はテストを実行していない。
+- 「3種類の依頼例の照合はdiffから確認不能」の⚠️はcontrollerが3例を保存し、導入済みロールと対応するupstreamテンプレートへ意味を照合して解消。`.pi/APPEND_SYSTEM.md:20-31` がscope・証拠・同scope再送・テスト禁止優先を案内し、Personaは既存SHA検査で不変。
+- 静的例と照合記録: `/workspaces/reso-world/tmp/agents/issue-434.pe2kx9ad/static-scenarios.md`、`static-re-review-request.txt`、`static-branch-request.txt`、Task依頼は同SESSIONの`sdd/2026-11-15-issue-434-review-scope/task-1-review-prompt.md`。限定再レビューと全体の例は未送信。実行時の効果を確認したとは主張しない。
+- 関連ログとレビュー記録は同SESSIONに保存。設計・Spec両レビューのcleanupもretainedなし。保護checkoutのoutside_changesなし。unprotected_changesの他作業の領域は触っていない。
+- 残り: 最後のcommit後の必須検証、秘密検査・push・PR作成、PR修正ループ。以後SDD3回の運用評価はマージ後に残し、Refs #434 とする。
 
 ## 実装前の照合結果
 
