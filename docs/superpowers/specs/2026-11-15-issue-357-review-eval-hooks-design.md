@@ -50,7 +50,11 @@
 | `finalize.py`（`collect_result(record, record_file, result_file, result)`） | review-fix-planning / `finalize` | in-process、review_dir なし（`repository`・`pr` を渡す） | なし | 仮想記録 `@finalize/<reviewed_head 12 桁>/result.json`（保存した結果ファイルの bytes）。`--spec-commit` 無しで結果に `comment` があるとき（helper が投稿した）は、`@pr-comment/round-<round>/record.json`（`--record-file` の bytes）も |
 | `run_roles.py`（`collect_review_dir(planning_file, phase)`） | review-fix-planning / `run_roles` | in-process | `--planning-file`（`<review_dir>/verified/<HEAD12>.planning.json`）の 2 つ上。`--planning-file` が無ければ呼ばない | `planning_file` ＋ sweep。`main` の `finally` で、成功・失敗のどちらでも |
 | `upsert_pr_comment.py`（`collect_round_record(...)`） | review-fix-planning / `post` | shim の subprocess、review_dir なし | なし | `--records-file` があり投稿が成功したときだけ、仮想記録 `@pr-comment/round-<round>/record.json`（その bytes） |
-| `loop.py`（`collect_records(event, run_dir, run, cycle, ...)`） | pr-review-fix-loop / `review`・`cycle_end`・`finish`・`recover` | in-process | `run_dir`（`<review_dir>/loop/<run_id>`）の 2 つ上 | sweep。`cycle_end` は `--record-file` の bytes を `@pr-comment/round-<round>/record.json`、`--finalize-result` の bytes を `@finalize/<サイクルの head 12 桁>/result.json` として渡す。`finish`・`recover` は `verify_loop_run=<run_id>` を渡す（参照の欠落を `lost_revision` に記録する） |
+| `loop.py`（`collect_records(event, run_dir, run, cycle, ...)`） | pr-review-fix-loop / `review`・`cycle_end`・`finish`・`recover` | in-process | `run_dir`（`<review_dir>/loop/<run_id>`）の 2 つ上 | sweep。`cycle_end` は `--record-file` の bytes を `@pr-comment/round-<round>/record.json`、`--finalize-result` の bytes を `@finalize/<サイクルの head 12 桁>/result.json` として渡す。`finish`・`recover` は `verify_loop_run=<run_id>` を渡す（参照の欠落を `lost_revision` に記録する）。`review` は、レビュアーを起動する前（runner の batch の前）にも 1 回 sweep する（下の「loop 経由の上書き前の版」） |
+
+- 数え方: 7 関数・13 event。Issue の目標・完了条件の 11 保存点（`prepare`・`complete`・`fail`・`attach-runner`・`accept`・`finalize`・`run_roles`・`cycle_end`・`review`・`recover`・`finish`）に、`review_findings.py` の `validate` と `upsert_pr_comment.py` の `post` を加えた 13 をすべて必須にする（Issue の「変更してよいファイル」が 2 つの関数の追加を求めているため）
+- loop 経由の上書き前の版: loop の review では、レビュアーの `prepare`・`complete` は runner の子で動くので収集しない。after_run の `attach-runner` は `complete` の後なので、同じモデルの前の `<model>.md`・findings は既に上書きされている。そこで、司令塔側の `loop.py review` が batch を起動する前に review_dir を sweep し、上書きされる前の版を取る（同じ内容は 1 つの observation にしかならない）。`tools/review_eval/sources.rst` の「attach-runner の sweep で上書き前の版も取れる」という記述はこの経路では成り立たないが、所有外なので変えず PR 本文に書く
+- `attach-runner` の期限: `capture.collect` の `deadline` は秘密検査と lock の待ちだけを抑え、sweep・読み取り・blob 保存のローカル I/O は抑えない（`collect` の docstring）。呼び出し側は各 review_dir の前に残り時間を確かめ、過ぎていれば残りを呼ばない。ローカル I/O の上限は設けない（review_dir の記録は小さく、after_run の 60 秒枠の残り 30 秒を余白とする）
 
 - 呼ぶ時点: 各サブコマンドの保存処理の後で、標準出力に結果を書く前。loop は 4 サブコマンドを `try/finally` で囲み、`LoopError` で止まった（hold などで記録を保存した）場合も `run_dir` が存在すれば収集する。例外は外へ出さない
 - 仮想パスの round・head は記録の値（`round`・`reviewed_head`、loop はサイクルの `head`）から作る。`tools/review_eval/inventory.py` が `@finalize/{head[:12]}/result.json`・`@pr-comment/round-{round}/record.json` を引くので、その形に合わせる。値が無い・不正なときはその仮想記録を渡さない
@@ -68,6 +72,7 @@
 
 - 既存の helper のテストも、接続後は保存点で `collect` を呼ぶ。利用者の実設定を読ませないため、所有する tests ディレクトリの `conftest.py`（`.agents/skills/{pr-review,review-verify,review-fix-planning,pr-review-fix-loop}/tests/conftest.py`、`.agents/scripts/tests/conftest.py`。無いものは新規）に、`REVIEW_EVAL_CONFIG` を空文字にする autouse の fixture を足す。リポジトリ root の `conftest.py` と `tools/test_support/` は所有外なので変えない
 - 収集を有効にして確かめるテストは、テストの中で `monkeypatch.setenv("REVIEW_EVAL_CONFIG", <tmp の設定>)` に上書きする。設定は `tools/review_eval/tests/support.py` の `write_collection_config`（偽の scanner）で書き、store は `review-eval store init` 相当の API で初期化する。`workspace_root` は `tmp_path`、review_dir は `tmp_path/reviews/usaturn/create-reso-world/#900-feature-demo/`
+- 実装担当と検証は runner の子（`AGENT_RUNNER_DEPTH=1`）で pytest を動かすことがある。有効時の collection テストは、テストファイル内の fixture で `AGENT_RUNNER_DEPTH` を `delenv` し、runner の子を確かめるテストだけが明示的に設定する。`HOME` は `REVIEW_EVAL_CONFIG` を常に明示（空か tmp の設定）するので設定の解決に使われず、別の fixture は作らない
 - `HOME` はワンショットの一時ディレクトリ、`GIT_*` は既存の conftest が除去する。実 PR・ネットワーク・実データ・秘密値・モデル本文は使わない。記録本文には複数行・非 ASCII（日本語）を含める
 
 ## 受け入れ基準
@@ -79,12 +84,14 @@
   - 対象の反例（写す）: 有効な設定と初期化済み store。`attach-runner` は `AGENT_RUNNER_DEPTH` があっても写す
   - 収集が例外を投げても（`collect` を例外にする差し替え）、helper の終了コード・標準出力は収集なしと同じ
 - テスト（採用基準の S。壊れても気付けない、無効時に黙って書く・有効時に黙って写さない・期限超過で after_run を失敗させる・収集の例外で結果が変わる、を防ぐ）
-  - 4 経路の collection テスト（新規 4 ファイル）。各経路で「有効なら store に写る」1 件と「無効なら store に何も書かれず結果が同じ」1 件を代表にする。経路ごとに組み合わせを網羅しない
+  - 保存点の接続（13 event すべて）: `collect`（shim 経路は `run_hook`）を呼び出しを記録する偽物に差し替え、各 event の呼び出し箇所を通る経路（helper の `main` またはサブコマンドの dispatch。重い本体は差し替えてよい）で、route・event・review_dir（または repository・pr と仮想パス）が正しく渡ることを 1 件ずつ確かめる。保存点が呼ばない・route や event を取り違える、は壊れても気付けないため
+  - 4 経路の collection テスト（新規 4 ファイル）。各経路で、実際の一時 store を使い「有効なら store に写る」1 件と「無効なら store に何も書かれず結果が同じ」1 件を代表にする。store 未初期化・`sources` の対象外・runner の子の判定は `capture.collect` の中にあり（D3）、`tools/review_eval/tests` が確かめるので、helper 側で組み合わせを網羅しない（採用基準の D）。runner の子は、`attach-runner` だけが写すことを 1 件で確かめる
   - `attach-runner` の期限: 過去の deadline 相当（`time.monotonic` を進める差し替え）で、after_run の結果・終了コードが変わらず、期限後の review_dir を収集しないこと
   - 収集の例外: 1 経路の代表で、`collect` が例外でも結果が変わらないこと
   - 古い `dispatch.json` の `accept`
   - shim 経路（`upsert_pr_comment.py`・`review_findings.py validate`）は `run_hook` の呼び出し引数（絶対パス・仮想パス・route・event）と、無効時に subprocess を起動しないことを確かめる（実際の `uv run` の起動はしない）
 - 既存テストの退行 0 件: 4 経路の tests と `.agents/scripts/tests`、`bash scripts/check-layout.sh`
+- 完了条件: 実装 PR（本文に `Closes #357`）が `main` にマージされ、#357 が `state_reason=completed` で close され、7 関数の収集の呼び出しが `main` にあること。ボードの子なので、マージ後に結果を子 Issue にコメントし、claim（`refs/heads/agent-claims/issue-357`）を保存した SHA の lease で解放する（planning-parallel-issues）
 
 ## 文書
 
@@ -103,6 +110,9 @@
 | D6 | finalize の判断の記録 | `--spec-commit` 無しで結果に `comment` があるときだけ `@pr-comment` を渡す | 常に渡す | sources.rst「投稿した finalize.py」。create-reso-world の PR は planner が `upsert_pr_comment.py` で投稿済みで、そちらが取る | 委任 |
 | D7 | `review_findings.py` の review_dir | 検査したファイルの親が `verified` のときだけ、その親の親を sweep | 文書の `pr` から `review_target.py` で探す | SKILL.md は一時ファイルを `VERIFIED_DIR` に置く。推測で別の review_dir を選ばない | 委任 |
 | D8 | README・sources.rst の「予定」記述 | 変えない | 本 PR で更新する | `tools/review_eval/**` は所有外（Issue の対象外） | 委任。PR 本文に残件として書く |
+| D9 | loop 経由の上書き前の版（Spec レビュー S1） | `loop.py review` の batch 前に sweep する | cleanup 前の `previous-review.md` を親から渡す | review_dir の今の版がそのまま上書き前の版であり、所有ファイルの中で済む。`previous-review.md` は runner の子の作業 session にあり、司令塔から場所を特定できない | 委任 |
+| D10 | 保存点のテストの粒度（Spec レビュー S3） | 13 event の接続を偽の `collect` で 1 件ずつ、実 store は経路ごとに有効・無効の代表 | 全 event × 全無効条件のパラメータ化 | 接続の取り違えは helper ごとに別の守り（S）。無効条件の判定は `capture.collect` の守りで、重ねると採用基準の D に反する | 委任 |
+| D11 | `attach-runner` のローカル I/O（Spec レビュー S6） | 残り時間の確認だけを行い、I/O の強制打ち切りはしない | thread・別プロセスで 30 秒を強制する | `tools/review_eval` の内部を変えずに強制する手段が無く、記録は小さい。限界を Spec に明記する | 委任 |
 
 ## 実装担当に任せること
 
@@ -113,3 +123,4 @@
 ## レビュー記録
 
 - 設計レビュー 1 回目（helper `review_design.py`、外部担当）: requested/actual `pi_openai-codex_gpt6-sol_xhigh`（identity: openai-codex `gpt-6.1-sol` xhigh）、fallback 未使用、`review_id` `ad04a1a0c1a4469fb5b42db26c48b25d`、reviewed Spec sha256 `61aa37151b65f3c30db64a09577672c18d722ecc639d0a5d3ab9f098fad6d896`（commit `af261c28`）、`elapsed_seconds` 154.7、verdict `sound`・concerns 0 件、`outside_changes` なし、`unprotected_changes` は他作業の `/tmp/pr-review-376-*`・`/tmp/review-fix-planning.*` の 6 件（このレビューとは無関係、記録のみ）。review_dir は run の SESSION（commit しない）
+- Spec レビュー 1 回目（helper `review_spec.py`、外部担当）: requested/actual `pi_opencode-go_deepseek4-flash_max`（identity: opencode-go `deepseek-v4.1-flash` max）、fallback 未使用、`review_id` `430a8c53237d4b38a2c1a22c8b4d0eb5`、reviewed Spec sha256 `42158190f2eb24ea21846ee0adce3c3604426614f2572394fec9c6ab3a7e0b9f`（commit `00349c55`）、`elapsed_seconds` 1121.8、指摘 7 件（important 4・minor 3）、`outside_changes` なし、`unprotected_changes` は設計レビューと同じ他作業の 6 件。採否: S1 採用（D9）、S2 採用（数え方）、S3 一部採用（D10。接続は全 event、無効条件の網羅は不採用）、S4 採用（`AGENT_RUNNER_DEPTH` の除去。HOME の fixture は不要として不採用）、S5 不採用（Issue の「テストの隔離は所有する tests ディレクトリ内で完結させる（`REVIEW_EVAL_CONFIG` を一時パスまたは空にする）」が、所有する tests ディレクトリの conftest での隔離を許している。`tools/review_eval/tests/support.py` は変更せず読むだけで、壊れれば import エラーで気付ける）、S6 一部採用（D11。限界の明記のみ）、S7 採用（完了条件）
