@@ -61,7 +61,7 @@
 - 担当ファイル: `tools/agent_runner/adapters/claude_code.py`、`tools/agent_runner/adapters/codex.py`、`tools/agent_runner/adapters/cursor.py`、`tools/agent_runner/adapters/pi.py`、`tools/agent_runner/adapters/json_result.py`（docstring のみ）、`tools/agent_runner/tests/adapters/test_parser_regressions.py`
 - 変更しない: `tools/agent_runner/adapters/devin.py`、`json_result.py` の関数本体、`tests/adapters/test_json_result.py`、`tests/adapters/devin/`、各 adapter の完了条件・malformed event・認証/承認の診断
 - 手順:
-  1. （RED）`test_parser_regressions.py` に S のテストを 2 つ足す（Spec の「テスト」）。
+  1. （RED）`test_parser_regressions.py` に S のテストを 3 つ足す（Spec の「テスト」）。
      - `claude-code`・`codex`・`cursor` を parametrize し、訂正形の collect が `{"status": "NEW"}` を payload にする（`_success` を使う）。テストのコメントに「古い object を成功にする誤りを各 adapter の接続ごとに守る」と防ぐ損害を書く
      - 同じ 3 adapter で、`"{\"status\": \"OLD\"}\nDone.\n{\"status\": \"DONE\","` の collect が `response_failed` になり payload が無い（codex・cursor は `outcome.state == "response_failed" and outcome.receipt is None`、claude_code は `outcome.receipt.status == "response_failed" and outcome.receipt.payload is None`。既存テストの判定の書き方に合わせる）
      - codex で、`{"type": "error", "message": "authentication required"}` → `{}` の agent_message → `turn.completed` の collect が `outcome.state == "awaiting_authentication"` かつ `outcome.receipt is None` になる（Spec D4）。コメントに「空 object でエラーを解除すると認証待ちが invalid_result に変わって気付けない」と書く。既存の `test_codex_fresh_completed_message_recovers_error` が陽性対照
