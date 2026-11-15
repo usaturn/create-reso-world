@@ -18,7 +18,7 @@ import shutil
 import stat
 import sys
 import tempfile
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, cast
@@ -676,16 +676,55 @@ def accept(run_dir: Path) -> dict[str, str]:
     return {"statement_candidates": str(verified_dir / sidecar), "fix_check": str(verified_dir / target)}
 
 
+def collect_accepted(review_dir: Path, files: Sequence[Path], verifier: Mapping[str, Any] | None) -> None:
+    """accept が保存した記録を review-eval へ渡す。失敗しても accept の結果・終了コードを変えない。"""
+    try:
+        from tools.review_eval.capture import collect
+    except Exception:  # noqa: BLE001 - import の失敗でも accept の結果を変えない
+        return
+    context: dict[str, Any] = {"helper": "dispatch.py", "command": "accept"}
+    if verifier is not None:
+        model = verifier.get("model")
+        if isinstance(model, str):
+            context["model"] = model
+        provenance = verifier.get("provenance")
+        if isinstance(provenance, Mapping):
+            agent = provenance.get("agent_id")
+            if isinstance(agent, str):
+                context["agent"] = agent
+    try:
+        collect(
+            route="review-verify",
+            event="accept",
+            review_dir=review_dir,
+            files=tuple(files),
+            context=context,
+        )
+    except Exception:  # noqa: BLE001, S110 - 収集の失敗は結果に返さない
+        pass
+
+
 def main(argv: list[str] | None = None, *, adapter_loader: Callable[[str], Adapter] = load_adapter) -> int:
     arguments = sys.argv[1:] if argv is None else argv
     if arguments[:1] == ["accept"]:
         accepting = argparse.ArgumentParser(prog="dispatch.py accept", description=accept.__doc__)
         accepting.add_argument("--run-dir", required=True, type=Path)
+        parsed = accepting.parse_args(arguments[1:])
         try:
-            saved = accept(accepting.parse_args(arguments[1:]).run_dir)
+            saved = accept(parsed.run_dir)
         except AcceptError as error:
             print(f"fix-check accept: not accepted: {error}", file=sys.stderr)
             return error.code
+        try:
+            saved_dispatch = read_dispatch(parsed.run_dir)
+            request = cast(Mapping[str, Any], saved_dispatch["request"])
+            collect_accepted(
+                Path(cast(str, request["review_dir"])),
+                [Path(path) for path in saved.values()],
+                cast(Mapping[str, Any] | None, saved_dispatch.get("verifier")),
+            )
+        except Exception:  # noqa: BLE001, S110 - 収集のために accept の結果を変えない
+            pass
         print(json.dumps(saved, ensure_ascii=False))
         return 0
     parser = argparse.ArgumentParser(description=__doc__)
