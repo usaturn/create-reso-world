@@ -109,3 +109,11 @@
 - 既存テストが新しい抽出で落ちた場合: 新しい仕様で意味が変わる入力（未閉鎖 fence など）なら Spec D9 と同じく直し ledger に記録する。完了条件・診断のテストが落ちたら実装の誤りとして直す
 - devin のテストが落ちた場合: 実装を戻す（devin は対象外）
 - 外部担当の `failed`、上限に達した `retry`・`rejected`: その Task で止まり、自分で引き取らない
+
+## 実行の記録
+
+- Task 1: devin_swe2_max（SWE-2 Max、session `angry-burn`）に 1 回依頼、250 秒、`importable`、commit `002a0771`。担当の concern（手順 1 の「2 つ」と Spec の 3 つの食い違い）は Plan の書き漏れで、手順を「3 つ」に修正した（`ea92dfdc`）。Task レビュー: 314 passed、`compileall` 成功、`ruff --select F401,F841` 成功、codex の空 object ガードを `is not None` に戻すミューテーションでテストが 1 件失敗することを確認
+- Task 2: devin_swe2_max（session `various-bass`）に 1 回依頼、297 秒、`importable`、commit `e56c3aca`。concern 2 件（pi.rst の既存の曖昧な文を置き換えた、claude-code.rst の要件文を pi.rst に揃えた）は Spec の意味に合うので採用。`bash scripts/check-layout.sh` 成功
+- 統合の確認（commit しない一時スクリプト `PARENT_ROOT/tmp/agents/issue-416.q59dbn2x/integration_check.py`）: base `9800cf36` では 29 件中 8 件が NG（claude_code の文章 → 裸の JSON、3 adapter の訂正形で OLD、codex・cursor の JSONC の例 + 最終結果、pi・claude_code の JSON 指示）。HEAD では 31 件すべて OK（3 adapter × 7 形の collect、4 adapter × JSON/text の `prepare`、devin の `prepare` の argv と依頼文ファイルが base と同じ）
+- 再試行・失敗: なし。実行予算の使用率は統合の確認の時点で約 6%（ledger は Spec の commit の後に開始）
+- `--merge` のため、最後のブランチ全体のレビューは PR 修正ループの 1 サイクル目で代える。ledger の `deferred`（minor の持ち越し）は無い
