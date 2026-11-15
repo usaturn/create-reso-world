@@ -58,6 +58,7 @@ claude-code ・ devin ・ pi も、``writes`` によらずシェルを使える�
 ``agent.skill_sources`` から最初に見つかった ``<source>/<name>/SKILL.md`` があれば、その絶対パスでの読み込みを指示する。
 相対 source は work_dir を基準に解決する。
 指定しただけでは、読み込みを観測したことにはならない。
+JSON の役割では、共有の ``request_prompt`` が依頼文の直後に ``JSON_REQUEST``（``"Answer with a single JSON object as your final message."``）を足し、その後に skill の指示が続く。
 
 .. _agent_runner_cursor_collection:
 
@@ -65,8 +66,14 @@ claude-code ・ devin ・ pi も、``writes`` によらずシェルを使える�
 ================
 
 最終応答には ``type: result`` 、``subtype: success`` 、``is_error: false`` と文字列の ``result`` を必要とする。
-JSON 形式には JSON オブジェクト、text 形式には空でない本文を必要とする。
-散文と JSON が混在するときは最初の JSON オブジェクトを取り出すが、不正な外側の JSON から内側だけを取り出して成功にはしない。
+JSON 形式には JSON object、text 形式には空でない本文を必要とする。
+JSON では回答全体の object に加え、説明文に続く裸の object や code fence 内の object も受け付け、複数ある場合は最後の object を採用する。
+結果として扱う fence は、info の最初の語が大文字小文字を無視して ``json`` と完全一致する場合と言語指定のない場合である。
+結果 fence の内側の inline code と入れ子の非 JSON fence は例示として扱わず、壊れた object 候補は後続結果があっても拒否する。
+JSON fence や言語指定のない fence、裸の壊れた object 候補があれば応答を拒否し、先行結果や壊れた候補の内部へ巻き戻さない。
+閉じた inline code span と、明示的に JSON 以外の言語を指定した閉じた fence は例示である。その中の壊れた object 候補は、最後のそのような例の終端より後ろに有効な結果がある場合だけ不問にする。例内の別の正常 object では満たさず、後続結果が無ければ応答を拒否する。
+壊れた候補を含まない例示内の有効な object は従来どおり候補になる。
+未閉鎖の fence 内でも有効な JSON object は受け付ける。
 
 ``error`` イベント、不正な result 、壊れた JSON らしいイベントがあれば、先行する成功結果を再利用せず ``response_failed`` とする。
 成功 result の後に ``assistant`` または新しい ``system`` / ``init`` が出た場合、その応答に対応する新しい完了 result を必要とする。
