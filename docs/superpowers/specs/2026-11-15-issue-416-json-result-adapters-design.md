@@ -153,4 +153,5 @@ AGENTS.md の「テストの採用基準」に従う。
 - `elapsed_seconds`: 178.2、`outside_changes`: なし、`unprotected_changes`: 他の作業の `/tmp/pr-review-376-*`・`/tmp/review-fix-planning.*` の worktree 6 件（この作業の対象外。記録のみ）
 - 判定: `concerns`（1 件）
 - 採否: D1（blocking、codex のエラー解除で空 object を許すと認証・承認の診断が消える）を採用。D4・設計の codex・テスト・受け入れ基準に反映した
+- `decide` の結果: `next: stop`（理由 `blocking: D1`）。reflected の Spec SHA-256 は `ce624d854375254c75238926eeace3aab1c81dd72a34333a0d13350cf67f552f`（commit `0f46416d`）。採用・反映済みの blocking で `wrong_approach`・`questions_for_user`・`needs_judgment`・作るものの変更が無いため、利用者の 2026-11-15 の続行指示（Issue #427 の run での指摘。#455 で修正を追跡中）に従い、止まらずに Spec レビューへ進んだ
 - レビューの記録は commit しない: `PARENT_ROOT/tmp/agents/issue-416.q59dbn2x/2026-11-15-issue-416-json-result-adapters-design.design-review/review-1`
