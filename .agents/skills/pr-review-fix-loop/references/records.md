@@ -190,3 +190,18 @@ finalize.py がマージを観測した後に `cycle-end` が GitHub の失敗�
 - `finish --abort` は abort の結果を受理した時刻を `aborted_at` に初回だけ保存する。その後に資源未確認で `held` へ進んでも同じ値を保持し、`recover` でも更新しない。abort を伴わない `hold()` は時刻を保存しない。
 - `status` の `reconciled` が null でないとき、`result` は照合後の論理結果で、元の abort 結果は `original_result` にある。ディスクの `run.json` は `stopped`/`abort` のままで、`reconcile` は書き換えない（3.1 節）。
 - `recover` は、runner の試行が停止済みでも、その出力で始めた後処理（after_run）の停止を確かめられない資源（後処理の報告が無い、または `stop_confirmed` が true でない報告を含む）を、事実なしには回収しない。停止を確かめた事実を受け取った資源でも、秘密が残りうるファイル（runner の `sensitive_paths`。runner の結果が無いときはディレクトリ全体）を消さずに残し、`retained` に完全パスを書く。
+
+## 7. 収集の保存点（review-eval）
+
+`loop.py` は、次の 4 つの保存点から review-eval の収集を呼ぶ。どの呼び出しも、helper の結果・標準出力・終了コードを変えない（収集が例外を投げても握りつぶす）。既定では無効で、設定が無い・`enabled = false`・`REVIEW_EVAL_CONFIG` が空のときは何も書かない。有効なときだけ、`run_dir` の 2 つ上の review_dir の記録を写す。
+
+| サブコマンド | event | 渡す記録 |
+| --- | --- | --- |
+| `review` | `review` | sweep。レビュアーの batch を起動する直前に 1 回呼び、batch が同じモデルの `<model>.md`・findings を上書きする前の版を取る。dispatch の `finally` でもう一度呼ぶ |
+| `cycle-end` | `cycle_end` | sweep。`--record-file` の bytes を `@pr-comment/round-<round>/record.json`、`--finalize-result` の bytes を `@finalize/<サイクルの head 12 桁>/result.json` として渡す。round・head が無い・不正なときは、その仮想記録を渡さない |
+| `finish` | `finish` | sweep と `verify_loop_run=<run_id>`。サイクルの記録が参照する版のうち取れておらず、今の内容とも違うものを `lost_revision` として記録する |
+| `recover` | `recover` | `finish` と同じ |
+
+- 呼ぶ時点は、各サブコマンドの保存処理の後で、標準出力に結果を書く前である。`LoopError` で止まった場合（`hold` などで記録を保存した場合を含む）も、`run_dir` が存在すれば `finally` で収集し、元の終了コード・出力を保つ。
+- 記録の読み直しに失敗したときは、仮想記録を渡さず sweep だけを行う。例外を外へ出さない。
+- `reconcile` は収集の保存点ではない。

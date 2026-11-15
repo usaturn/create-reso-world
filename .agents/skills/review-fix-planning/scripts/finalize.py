@@ -552,6 +552,71 @@ def finalize(
     return result
 
 
+def collect_result(
+    record: Mapping[str, Any],
+    record_file: Path,
+    result_file: Path,
+    result: Mapping[str, Any],
+    *,
+    spec_commit: str | None,
+) -> None:
+    """保存した最終化の結果と、投稿済みの判断の記録を review-eval へ渡す。
+
+    仮想記録は保存したファイルの bytes から作る。round・reviewed_head が無い・不正なときは、その仮想記録を
+    渡さない。収集の失敗は最終化の結果・終了コードを変えない。
+    """
+    try:
+        root = Path(__file__).resolve().parents[4]
+        if str(root) not in sys.path:
+            sys.path.insert(0, str(root))
+        from tools.review_eval.capture import VirtualRecord, collect
+    except Exception:  # noqa: BLE001 - import の失敗で最終化の結果を変えない
+        return
+    try:
+        pr = record.get("pr")
+        repository = pr.get("repository") if isinstance(pr, Mapping) else None
+        number = pr.get("number") if isinstance(pr, Mapping) else None
+        if not isinstance(repository, str) or type(number) is not int or number < 1:
+            return
+        records: list[Any] = []
+        head = record.get("reviewed_head")
+        if isinstance(head, str) and FULL_SHA.fullmatch(head) is not None:
+            try:
+                records.append(VirtualRecord(f"@finalize/{head[:12]}/result.json", result_file.resolve().read_bytes()))
+            except OSError:
+                pass
+        round_number = record.get("round")
+        if (
+            spec_commit is None
+            and isinstance(result, Mapping)
+            and result.get("comment") is not None
+            and type(round_number) is int
+            and round_number > 0
+        ):
+            try:
+                records.append(
+                    VirtualRecord(
+                        f"@pr-comment/round-{round_number}/record.json",
+                        record_file.resolve().read_bytes(),
+                    )
+                )
+            except OSError:
+                pass
+        if not records:
+            return
+        collect(
+            route="review-fix-planning",
+            event="finalize",
+            review_dir=None,
+            records=records,
+            repository=repository,
+            pr=number,
+            context={"helper": "finalize.py", "command": "finalize"},
+        )
+    except Exception:  # noqa: BLE001, S110 - 収集の失敗で最終化の結果を変えない
+        pass
+
+
 def read_object(path: Path) -> dict[str, Any]:
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
@@ -600,6 +665,13 @@ def main(argv: list[str] | None = None) -> int:
             os.fsync(stream.fileno())
         os.replace(temporary, destination)
         temporary = None
+        collect_result(
+            record,
+            args.record_file,
+            destination,
+            result,
+            spec_commit=args.spec_commit,
+        )
     except OSError, ValueError:
         result.update(outcome="stopped", stop_reason=f"environment: {stage}を完了できない")
         print(json.dumps(result, ensure_ascii=False))

@@ -2637,6 +2637,45 @@ def _run_documents(directories: Sequence[Path]) -> list[dict[str, Any]]:
     return documents
 
 
+def _review_eval_shim() -> Any:
+    """tools/review_eval/shim.py を、repo root が sys.path に無くても標準ライブラリだけで読む。"""
+    loaded = sys.modules.get("tools.review_eval.shim")
+    if loaded is not None and hasattr(loaded, "run_hook"):
+        return loaded
+    path = Path(__file__).resolve().parents[2] / "tools/review_eval/shim.py"
+    spec = importlib.util.spec_from_file_location("review_eval_shim", path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"cannot load {path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _collect_before_replacement(path: Path) -> None:
+    """validate が成功した記録を、置き換え前の版として review-eval へ渡す（shim の subprocess）。
+
+    検査したファイルの親が ``verified`` のときだけ、その親の親を review_dir として渡す。設定・保存先の
+    判定は shim に任せ、失敗しても validate の結果・終了コードを変えない。
+    """
+    try:
+        target = Path(path).resolve()
+        if target.parent.name != "verified":
+            return
+        config = os.environ.get("REVIEW_EVAL_CONFIG")
+        if config:
+            config_path = Path(config).expanduser()
+            if not config_path.is_absolute():
+                os.environ["REVIEW_EVAL_CONFIG"] = str(config_path.resolve())
+        _review_eval_shim().run_hook(
+            tool_root=Path(__file__).resolve().parents[2],
+            route="review-verify",
+            event="validate",
+            review_dir=target.parent.parent,
+        )
+    except Exception:  # noqa: BLE001, S110 - 収集の失敗で validate の結果を変えない
+        pass
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="review_findings.py", description="review-findings v1 / v2 の文書を扱う")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -2684,6 +2723,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 section = cast(dict[str, Any], document["statement_candidates"])
                 candidates_path = args.file.parent / cast(str, section["file"])
                 check_statement_judgments(document, cast(dict[str, Any], _read_json(candidates_path)))
+            _collect_before_replacement(args.file)
         elif args.command == "from-markdown":
             value = candidates_from_markdown(
                 args.file.read_text(encoding="utf-8"),

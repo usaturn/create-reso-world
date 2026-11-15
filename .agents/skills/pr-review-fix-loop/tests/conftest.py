@@ -640,3 +640,9 @@ def env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> LoopEnv:
     environment.push("PR の変更")
     (tmp_path / "agent-runner.toml").write_text(TEST_TEMPLATE, encoding="utf-8")
     return environment
+
+
+@pytest.fixture(autouse=True)
+def isolated_review_eval_config(monkeypatch: pytest.MonkeyPatch) -> None:
+    """収集は既定で無効にする（有効な設定を使うテストだけが上書きする）。"""
+    monkeypatch.setenv("REVIEW_EVAL_CONFIG", "")

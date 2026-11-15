@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
+import os
 import re
 import subprocess
 import sys
@@ -42,6 +43,59 @@ def _load_records() -> ModuleType:
 
 
 records = _load_records()
+
+
+def _review_eval_shim() -> Any:
+    """tools/review_eval/shim.py を、repo root が sys.path に無くても標準ライブラリだけで読む。"""
+    loaded = sys.modules.get("tools.review_eval.shim")
+    if loaded is not None and hasattr(loaded, "run_hook"):
+        return loaded
+    path = Path(__file__).resolve().parents[4] / "tools/review_eval/shim.py"
+    spec = importlib.util.spec_from_file_location("review_eval_shim", path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"cannot load {path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def collect_round_record(
+    repo: str,
+    pr: int,
+    records_file: Path | None,
+    result: Mapping[str, Any],
+) -> None:
+    """投稿が成功した round の記録を、仮想記録として review-eval へ渡す（shim の subprocess）。
+
+    ``--records-file`` があり、round が正の整数のときだけ渡す。設定・保存先の判定は shim に任せ、
+    失敗しても投稿の結果・終了コードを変えない。
+    """
+    if records_file is None:
+        return
+    try:
+        target = Path(records_file).resolve()
+        record = read_record(str(target))
+        round_number = record.get("round")
+        if type(round_number) is not int or round_number < 1:
+            return
+        if not isinstance(result, Mapping):
+            return
+        config = os.environ.get("REVIEW_EVAL_CONFIG")
+        if config:
+            config_path = Path(config).expanduser()
+            if not config_path.is_absolute():
+                os.environ["REVIEW_EVAL_CONFIG"] = str(config_path.resolve())
+        _review_eval_shim().run_hook(
+            tool_root=Path(__file__).resolve().parents[4],
+            route="review-fix-planning",
+            event="post",
+            records=[(f"@pr-comment/round-{round_number}/record.json", target)],
+            repository=repo,
+            pr=pr,
+            context={"helper": "upsert_pr_comment.py", "command": "post"},
+        )
+    except Exception:  # noqa: BLE001, S110 - 収集の失敗で投稿の結果を変えない
+        pass
 
 
 class Runner(Protocol):
@@ -445,6 +499,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         record = None if args.records_file is None else read_record(args.records_file)
         result = upsert(args.pr, args.repo, args.model_name, read_body(args.body_file), record=record)
+        if args.records_file is not None:
+            collect_round_record(args.repo, args.pr, Path(args.records_file), result)
     except CommentError as error:
         print(str(error), file=sys.stderr)
         return 64

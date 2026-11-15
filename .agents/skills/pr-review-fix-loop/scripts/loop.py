@@ -2395,6 +2395,9 @@ def review(
     if not existing or existing[-1].state != "reviewing" or run.result is not None:
         raise LoopError(3, "state", "レビューの段階のサイクルが無い（reuse のサイクルではレビュアーを起動しない）")
     cycle = existing[-1]
+    # レビュアーの batch は同じモデルの前の版を上書きするので、起動の前に今の版を sweep して取る（Spec D9）。
+    # runner の子では収集しないので、司令塔側のこの呼び出しだけが上書き前の版を残せる
+    collect_records("review", run_dir)
     if cycle.review.batch is None:
         batch, entries, retained = _review_batch(
             run_dir, run, cycle, cycle.review, github=github, adapter_loader=adapter_loader, tmp_root=tmp_root
@@ -2850,6 +2853,76 @@ def status(
     return output
 
 
+def collect_records(
+    event: str,
+    run_dir: Path,
+    *,
+    record_file: Path | None = None,
+    finalize_result: Path | None = None,
+) -> None:
+    """保存した loop の記録を review-eval へ渡す。収集の失敗は結果・終了コードを変えない。
+
+    run と cycle は ``run_dir`` から読み直し、読めなければ sweep だけを行う。仮想記録は保存したファイルの
+    bytes から作り、round・head が無い・不正なときは渡さない。``finish``・``recover`` は ``verify_loop_run``
+    を渡し、参照する版の欠落を記録する。
+    """
+    try:
+        from tools.review_eval.capture import VirtualRecord, collect
+    except Exception:  # noqa: BLE001 - import の失敗で loop の結果を変えない
+        return
+    try:
+        directory = Path(run_dir).resolve()
+        review_dir = directory.parent.parent.resolve()
+        run_id: str | None = None
+        try:
+            run_id = load_run(directory).run_id
+        except Exception:  # noqa: BLE001 - 読めなければ sweep だけを行う
+            run_id = None
+        cycle: CycleRecord | None = None
+        try:
+            existing = load_cycles(directory)
+            cycle = existing[-1] if existing else None
+        except Exception:  # noqa: BLE001 - 読めなければ仮想記録を渡さない
+            cycle = None
+        virtual_records: list[Any] = []
+        if event == "cycle_end":
+            if record_file is not None:
+                try:
+                    record = json.loads(Path(record_file).read_bytes())
+                    round_number = record.get("round") if isinstance(record, Mapping) else None
+                    if type(round_number) is int and round_number > 0:
+                        virtual_records.append(
+                            VirtualRecord(
+                                f"@pr-comment/round-{round_number}/record.json",
+                                Path(record_file).resolve().read_bytes(),
+                            )
+                        )
+                except Exception:  # noqa: BLE001, S110 - 読めない記録は渡さない
+                    pass
+            if finalize_result is not None and cycle is not None:
+                head = cycle.head
+                if isinstance(head, str) and FULL_SHA.fullmatch(head) is not None:
+                    try:
+                        virtual_records.append(
+                            VirtualRecord(
+                                f"@finalize/{head[:12]}/result.json",
+                                Path(finalize_result).resolve().read_bytes(),
+                            )
+                        )
+                    except OSError:
+                        pass
+        collect(
+            route="pr-review-fix-loop",
+            event=event,
+            review_dir=review_dir,
+            records=virtual_records,
+            context={"helper": "loop.py", "command": event},
+            verify_loop_run=run_id if event in ("finish", "recover") else None,
+        )
+    except Exception:  # noqa: BLE001, S110 - 収集の失敗で loop の結果を変えない
+        pass
+
+
 # --- CLI ----------------------------------------------------------------------------------------------------------
 
 
@@ -2946,21 +3019,46 @@ def dispatch(args: argparse.Namespace) -> dict[str, Any]:
     if name == "cycle-begin":
         return cycle_begin(args.run.resolve())
     if name == "cycle-end":
-        return cycle_end(
-            args.run.resolve(),
-            finalize_result=args.finalize_result,
-            round_dir=args.round_dir,
-            role_runs=args.role_run,
-            record_file=args.record_file,
-        )
+        run_dir = args.run.resolve()
+        try:
+            return cycle_end(
+                run_dir,
+                finalize_result=args.finalize_result,
+                round_dir=args.round_dir,
+                role_runs=args.role_run,
+                record_file=args.record_file,
+            )
+        finally:
+            if run_dir.is_dir():
+                collect_records(
+                    "cycle_end",
+                    run_dir,
+                    record_file=args.record_file,
+                    finalize_result=args.finalize_result,
+                )
     if name == "finish":
-        return finish(args.run.resolve(), abort=args.abort, finalize_result=args.finalize_result)
+        run_dir = args.run.resolve()
+        try:
+            return finish(run_dir, abort=args.abort, finalize_result=args.finalize_result)
+        finally:
+            if run_dir.is_dir():
+                collect_records("finish", run_dir)
     if name == "status":
         return status(args.run.resolve() if args.run else None, argument=args.pr)
     if name == "review":
-        return review(args.run.resolve())
+        run_dir = args.run.resolve()
+        try:
+            return review(run_dir)
+        finally:
+            if run_dir.is_dir():
+                collect_records("review", run_dir)
     if name == "recover":
-        return recover(args.run.resolve(), operator_confirmed_stopped=args.operator_confirmed_stopped)
+        run_dir = args.run.resolve()
+        try:
+            return recover(run_dir, operator_confirmed_stopped=args.operator_confirmed_stopped)
+        finally:
+            if run_dir.is_dir():
+                collect_records("recover", run_dir)
     if name == "reconcile":
         return reconcile(args.run.resolve(), finalize_result=args.finalize_result, comment_id=args.comment_id)
     raise LoopError(2, "arguments", f"未対応のサブコマンド: {name}")
