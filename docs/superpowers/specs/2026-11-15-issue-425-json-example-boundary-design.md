@@ -2,11 +2,11 @@
 
 ## 管理・実行許可
 
-- 状態: `draft`
+- 状態: `completed`（PR #461 のレビュー選別・検証まで完了。Issue のマージ後確認や close の実施を意味しない）
 - 対象: https://github.com/usaturn/create-reso-world/issues/425
 - 対象 repository: `usaturn/create-reso-world`
 - 利用者の実行指示: `#425 --merge --design-review pi_openai-codex_gpt6-sol_xhigh --spec-review pi_opencode-go_deepseek4-flash_max --implement pi_opencode-go_deepseek4-flash_max --assign implement=pi_opencode-go_deepseek4-flash_max --assign inspect=devin_swe2_max,pi_opencode-go_deepseek4-flash_max`（元の改行は省略）。
-- issue-to-pr の委任により通常の設計判断、検証、commit、push、PR 作成、指定ループの finalize によるマージまで実行する。内容の承認を得たという意味ではなく、文書は draft のままとする。
+- issue-to-pr の委任により通常の設計判断、検証、commit、push、PR 作成、指定ループの finalize によるマージまで実行する。内容の承認を得たという意味ではなく、初回公開までは draft とした。PR 修正ループの review-fix-planning の結論 2 に従い、検証・判断の完了記録を completed として追記する。
 - コード・文書とも新しい linked worktree で編集し、base は `origin/refs/heads/main` の `eb9e378bd803a77c75fa01a30d92ccf0b3682f48`。捕捉状態と再照合は SESSION の helper で管理する。
 - SESSION: `/workspaces/reso-world/tmp/agents/issue-425.55cedqeq/`
 
@@ -90,3 +90,45 @@ baseline: `uv run --locked pytest tools/agent_runner/tests/adapters/test_json_re
 Plan で必須コマンドと S テストを固定し、Red→Green、fake collect、全体 pytest、`.devcontainer/run-tests.bash`、`scripts/check-layout.sh`、diff、Gitleaks を確認する。GitHub Actions は無効のままで CI を追加しない。
 
 マージ後に同じ fake collect 入力をマージ済みツリーでも再確認する項目が Issue に残るため、PR は `Refs #425` とし、マージだけで Issue を close しない。後続の確認・Issue 更新は loop/finalize の権限と観測結果に従い、未実施を成功にしない。
+
+## PR #461 レビュー修正の判断（サイクル 1）
+
+### 管理・実行許可と入力
+
+issue-to-pr の明示 `--merge` から続く review-fix-planning の完遂として、追加修正要否を確定し、結論 2 の記録・Spec 1 ファイルだけの commit・検査付き push・finalize によるマージまで実行する。この節は内容承認や実施前のマージ成功を記録するものではない。既存の本 Spec と Plan が同一 repository/Issue/PR/テーマに対応するため、回別の新規 Spec は作らない。
+
+- planner: `openai-codex/gpt-6.1-sol`、runtime `pi`（ランタイム変数で確認）、provider `openai-codex`、effort `xhigh`。
+- レビュー対象 HEAD: `90f18eb2a55dc11135fdc80e23febeeb5a888d31`。PR は open・非 draft、base main・head repository `usaturn/create-reso-world` を確認。clean で同じ HEAD の既存 feature worktree を再利用し、新しいコード作業ブランチは作らない。
+- レビュー保存先: `/workspaces/reso-world/reviews/usaturn/create-reso-world/#461-fix-issue-425-json-example-boundary/`
+- loop run ID: `f43cd1cca6c444b2accedb7c5dc01c02`。レビュー修正判断のサイクル 1（前の判断の記録は空）。
+- 判断記録: `/workspaces/reso-world/tmp/agents/review-fix-planning-pr461.ychgrjkw/round.json`（`no_fix_needed`、空の decisions、検査済み）。コメントの URL と push/merge 結果は実施後の報告に置き、この Spec に先書きしない。
+
+| レビューファイル | モデル | runtime | レビュー HEAD | このサイクルで再実行 | recommendation |
+|---|---|---|---|---|---|
+| SWE-2-Max.md | SWE-2 Max | devin | 90f18eb2a55d | true | Approve |
+| deepseek-v4.1-flash.md | deepseek-v4.1-flash | pi | 90f18eb2a55d | true | Approve |
+
+両者を loop が accepted と判定、rejected・retained・outside_changes は空。runner の終了・停止確認は成功。レビュアー本文・候補 JSON・実行記録と loop の head/identity を照合した。取得できない provenance は unknown のままとし、保存済みの識別情報を確認済み一覧・判断の記録へ引き継ぐ。
+
+### 全指摘の分類・要件照合
+
+両レビューの active・Pending・Unverified candidates はすべて 0 件、以前の判断も 0 件。解消済み 0 / 対応する 0 / 対応しない 0。票数や Approve を根拠にせず、6 変更ファイルの全文、関連する pi/devin の json_object 呼出、同じ例処理・first/array の分岐、テストの S/F/L/D 基準を controller が照合し、追加修正対象を確認しなかった。
+
+| PR/Spec の条件 | 今回の扱い・観測 | 検証根拠 |
+|---|---|---|
+| jsonc/json5 + 後続 DONE を両 collect が採用 | 実装は既に満たす。success と payload 一致 | 同一 HEAD の controller fake collect 22 確認を含む 40 確認。reverify-4.log と入力/期待/結果 JSON |
+| 壊れた例の終端外の結果が必須、OLD/例内 object を救済しない | 位置条件と共通の S テストが既に満たす | helper 7 passed、言語分類のみ変更した Red 対照、40 確認の陰性 |
+| result fence 優先と裸/wrapper の拒否 | 既存の走査優先と新文書が一致 | 既存ガードと限定 probe、controller の全文精読 |
+| 正常例の候補化と first/array/未閉鎖の限界 | D3 の委任判断を維持。新保証を足さない | 正常例・empty・array・first・未閉鎖の一時 probe |
+| docs と実装の意味一致 | pi/devin runtime・docstring と上述条件が一致 | Task レビューと controller の再照合 |
+
+共有条件は例終端・選択候補の位置・result fence の優先。統合担当 controller が同じ実入力から receipt/payload まで確認済み。新たに直す原因や「対応する」項目が無いため、修正経路表・設計見直し・失敗処理の追加テストは不要。既存の本体設計や受け入れ範囲を変更していない。
+
+### 検証・結論
+
+- issue-to-pr の検証時と HEAD が同一で、前後とも未 commit 変更なし。`checks.json`・`reverified.json` と実ログが残り、すべて終了コード 0 のため、同スキルが認める 1 サイクル目の検証再利用を選択した。`uv run --locked pytest tests/skills .agents/skills .agents/scripts tools -q` は 1608 passed、`.devcontainer/run-tests.bash` は 27 test(s)、`scripts/check-layout.sh` は PASS、fake collect/helper は 40 確認成功、diff check 成功。
+- 検証ツリーが含む base `db64bad6a185f04369b601dc750285de743450c1` を fetch 後の origin/main と照合し、同じ値かつ HEAD の祖先であることを確認。一時 merge ツリーは不要。捕捉後の前進履歴は `eb9e378b` → `88538055` → `db64bad6` で、2 回とも所有パス非重複・前提不変を確認し、各回 5 必須コマンドを再実行した。1 回目は検証末尾でさらなる前進を検出したため記録を成功として採用せず、2 回目で再検証した。
+- 確認済み一覧: `verified/90f18eb2a55d.json` と `.md`。両 candidate JSON の validate/check-pair 成功。確認対象 0 件、coverage.remaining 空。実 CLI/モデル/API 再現と上流全面一致は明示対象外であり、確認漏れではない。
+- reviewer が報告した既存 timing テストの初回失敗は、同担当の単体・全件再実行で成功。controller の同一 HEAD 全体 1608 passed にも失敗は無い。本 PR がそのテストを変更していないことを確認し、コード修正を加えない。uv の親 VIRTUAL_ENV 相違警告は feature の環境へ切り替わった表示であり、検証失敗ではない。
+- 結論: **2・追加修正不要**。修正担当/自己レビュー/fix-check の実行は無し（run_roles.py 呼出 0 回）。コードを追加修正していないので自己レビュー枠を消費せず、新たな自己レビューを実施したと記録しない。工程の記録は `verified/90f18eb2a55d.planning.json` へ投稿後に保存する。
+- 状態 completed はこの判断と開発・検証の完了を表す。マージ後の同じ fake collect 再確認・Issue state の観測はまだ未実施であり、結果は実施後のコメントと完了報告で示す。所要時間は入力確認から PR 作成まで約 2 時間 10 分、PR レビューの同期待ちは約 20 分。最終化の時間は後続報告へ分ける。
