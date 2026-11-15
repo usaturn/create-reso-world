@@ -62,6 +62,14 @@ Pi の通常の issue-to-pr → SDD で初回の Task レビューが scope 不�
 | PR 修正ループ | 明示 inspect=devin_swe2_max,pi_opencode-go_deepseek4-flash_max、implement=pi_opencode-go_deepseek4-flash_max。fallback はすべて空 | 最終全体レビューを別途実行 | `--merge` でループの 1 サイクル目が最終全体レビューに代わる | merge は finalize.py のみ |
 | ループ既定 | max_cycles=3、self-review=self、fix-check=self、雛形は `.devcontainer/agent-runner.toml`、ループ config=null | 個別の回数・担当を補完 | helper が適用した既定であり利用者の明示指定ではない | サイクル上限で止める |
 
+## レビュー記録
+
+- 設計レビュー 1 回目: 外部 helper、明示担当 `pi_openai-codex_gpt6-sol_xhigh`、actual_agent は同名、identity は `openai-codex/gpt-6.1-sol`（xhigh）、fallback 未使用。所要 107.96 秒。
+- review_dir: `/workspaces/reso-world/tmp/agents/issue-434.pe2kx9ad/2026-11-15-issue-434-review-scope-design.design-review/review-1`
+- review_id: `23916ae614fa401baf452d7c4d9cc16e`、reviewed Spec SHA-256: `ef57b4e115e2688cb312b3384ed0752895635e1a0645550150fcc21c9e3f5b86`。
+- 結果: `completed` / `sound`、concerns・questions_for_user・incomplete は空。採否対象なし。設計の小ささと安全境界、静的検証と後続評価の分離を妥当と評価。
+- attempts の終了コード 0、stop_confirmed=true。outside_changes は空。unprotected_changes は既存の `/tmp/pr-review-376-{2f0d17b0,79fe98e5,7f95b4e6,c9a6d3e9}/worktree` と `/tmp/review-fix-planning.{9AkFc2,a6ogtH}/worktree` の6登録で、いずれも開始前から不在の非保護 checkout（unavailable_before）。本作業の checkout の変化ではなく、他作業の領域なので変更・削除しない。
+
 ## 調査根拠
 
 - `.pi/APPEND_SYSTEM.md` の「サブエージェントの起動」、`tests/scripts/test-instructions.bash` の Persona 保護
