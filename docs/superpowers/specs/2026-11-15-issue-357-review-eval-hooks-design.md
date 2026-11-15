@@ -43,7 +43,7 @@
 
 | helper（関数） | 経路 / event | 方式 | review_dir | 渡す記録 |
 |---|---|---|---|---|
-| `review_run.py`（`collect_outputs(command, parent, state, result)`） | pr-review / `prepare`・`complete`・`fail` | in-process | 結果の `run_record`（`<review_dir>/runs/*.json`）の 2 つ上、無ければ `review_file` の親 | 結果の `run_record`・`review_file`・`findings_file` のうち存在するもの（`files`）＋ sweep。`prepare` は上書き前の版を取るため sweep だけ |
+| `review_run.py`（`collect_outputs(command, parent, state, result)`） | pr-review / `prepare`・`complete`・`fail` | in-process | 結果の `run_record`（`<review_dir>/runs/*.json` の絶対パス）の 2 つ上。無ければ `complete` の成功結果の `review_file`（絶対パス）の親。`prepare` の `review_file` は basename なので使わず、絶対パスの保存先を決められなければ収集しない | 結果の `run_record`・`review_file`・`findings_file` のうち存在するもの（`files`）＋ sweep。`prepare` は上書き前の版を取るため sweep だけ |
 | 同上 | pr-review / `attach-runner` | in-process、`allow_runner_child=True` | 結果の `attached`・`unchanged` の各 run record の 2 つ上。review_dir ごとにまとめる | その review_dir の run record ＋ sweep。全 review_dir で 1 つの `deadline = time.monotonic() + 30.0` を共有し、期限を過ぎたら残りの review_dir を呼ばない |
 | `dispatch.py`（`collect_accepted(review_dir, files, verifier)`） | review-verify / `accept` | in-process | `dispatch.json` の `request.review_dir` | `accept` が返す `statement_candidates`・`fix_check` ＋ sweep。`context` に verifier の識別（agent・model のみ） |
 | `review_findings.py`（`_collect_before_replacement(path)`） | review-verify / `validate` | shim の subprocess | 検査したファイルの親が `verified` のとき、その親の親。違えば呼ばない | sweep だけ（置き換え前の今の版を取る）。`validate` が成功（終了コード 0）したときだけ |
@@ -72,7 +72,7 @@
 
 - 既存の helper のテストも、接続後は保存点で `collect` を呼ぶ。利用者の実設定を読ませないため、所有する tests ディレクトリの `conftest.py`（`.agents/skills/{pr-review,review-verify,review-fix-planning,pr-review-fix-loop}/tests/conftest.py`、`.agents/scripts/tests/conftest.py`。無いものは新規）に、`REVIEW_EVAL_CONFIG` を空文字にする autouse の fixture を足す。リポジトリ root の `conftest.py` と `tools/test_support/` は所有外なので変えない
 - 収集を有効にして確かめるテストは、テストの中で `monkeypatch.setenv("REVIEW_EVAL_CONFIG", <tmp の設定>)` に上書きする。設定は `tools/review_eval/tests/support.py` の `write_collection_config`（偽の scanner）で書き、store は `review-eval store init` 相当の API で初期化する。`workspace_root` は `tmp_path`、review_dir は `tmp_path/reviews/usaturn/create-reso-world/#900-feature-demo/`
-- 実装担当と検証は runner の子（`AGENT_RUNNER_DEPTH=1`）で pytest を動かすことがある。有効時の collection テストは、テストファイル内の fixture で `AGENT_RUNNER_DEPTH` を `delenv` し、runner の子を確かめるテストだけが明示的に設定する。`HOME` は `REVIEW_EVAL_CONFIG` を常に明示（空か tmp の設定）するので設定の解決に使われず、別の fixture は作らない
+- 実装担当と検証は runner の子（`AGENT_RUNNER_DEPTH=1`）で pytest を動かすことがある。有効時の collection テストは、テストファイル内の fixture で `AGENT_RUNNER_DEPTH` を `delenv` し、runner の子を確かめるテストだけが明示的に設定する。4 つの collection テストファイルは autouse の fixture で `HOME` と `XDG_CONFIG_HOME` を `tmp_path` の下の一時ディレクトリにする（Issue の動作環境）。設定は `REVIEW_EVAL_CONFIG` で明示する
 - `HOME` はワンショットの一時ディレクトリ、`GIT_*` は既存の conftest が除去する。実 PR・ネットワーク・実データ・秘密値・モデル本文は使わない。記録本文には複数行・非 ASCII（日本語）を含める
 
 ## 受け入れ基準
@@ -86,6 +86,7 @@
 - テスト（採用基準の S。壊れても気付けない、無効時に黙って書く・有効時に黙って写さない・期限超過で after_run を失敗させる・収集の例外で結果が変わる、を防ぐ）
   - 保存点の接続（13 event すべて）: `collect`（shim 経路は `run_hook`）を呼び出しを記録する偽物に差し替え、各 event の呼び出し箇所を通る経路（helper の `main` またはサブコマンドの dispatch。重い本体は差し替えてよい）で、route・event・review_dir（または repository・pr と仮想パス）が正しく渡ることを 1 件ずつ確かめる。保存点が呼ばない・route や event を取り違える、は壊れても気付けないため
   - 4 経路の collection テスト（新規 4 ファイル）。各経路で、実際の一時 store を使い「有効なら store に写る」1 件と「無効なら store に何も書かれず結果が同じ」1 件を代表にする。store 未初期化・`sources` の対象外・runner の子の判定は `capture.collect` の中にあり（D3）、`tools/review_eval/tests` が確かめるので、helper 側で組み合わせを網羅しない（採用基準の D）。runner の子は、`attach-runner` だけが写すことを 1 件で確かめる
+  - loop の batch 前の sweep（D9）: 同じモデルの既存の `<model>.md`・findings を置き、batch の偽物がそれを書き換える `review` を実行して、store に旧 bytes の observation が残ること。batch 前の呼び出しは同じ `review` event の 1 回目として数え、13 event の数え方は変えない
   - `attach-runner` の期限: 過去の deadline 相当（`time.monotonic` を進める差し替え）で、after_run の結果・終了コードが変わらず、期限後の review_dir を収集しないこと
   - 収集の例外: 1 経路の代表で、`collect` が例外でも結果が変わらないこと
   - 古い `dispatch.json` の `accept`
@@ -124,3 +125,4 @@
 
 - 設計レビュー 1 回目（helper `review_design.py`、外部担当）: requested/actual `pi_openai-codex_gpt6-sol_xhigh`（identity: openai-codex `gpt-6.1-sol` xhigh）、fallback 未使用、`review_id` `ad04a1a0c1a4469fb5b42db26c48b25d`、reviewed Spec sha256 `61aa37151b65f3c30db64a09577672c18d722ecc639d0a5d3ab9f098fad6d896`（commit `af261c28`）、`elapsed_seconds` 154.7、verdict `sound`・concerns 0 件、`outside_changes` なし、`unprotected_changes` は他作業の `/tmp/pr-review-376-*`・`/tmp/review-fix-planning.*` の 6 件（このレビューとは無関係、記録のみ）。review_dir は run の SESSION（commit しない）
 - Spec レビュー 1 回目（helper `review_spec.py`、外部担当）: requested/actual `pi_opencode-go_deepseek4-flash_max`（identity: opencode-go `deepseek-v4.1-flash` max）、fallback 未使用、`review_id` `430a8c53237d4b38a2c1a22c8b4d0eb5`、reviewed Spec sha256 `42158190f2eb24ea21846ee0adce3c3604426614f2572394fec9c6ab3a7e0b9f`（commit `00349c55`）、`elapsed_seconds` 1121.8、指摘 7 件（important 4・minor 3）、`outside_changes` なし、`unprotected_changes` は設計レビューと同じ他作業の 6 件。採否: S1 採用（D9）、S2 採用（数え方）、S3 一部採用（D10。接続は全 event、無効条件の網羅は不採用）、S4 採用（`AGENT_RUNNER_DEPTH` の除去。HOME の fixture は不要として不採用）、S5 不採用（Issue の「テストの隔離は所有する tests ディレクトリ内で完結させる（`REVIEW_EVAL_CONFIG` を一時パスまたは空にする）」が、所有する tests ディレクトリの conftest での隔離を許している。`tools/review_eval/tests/support.py` は変更せず読むだけで、壊れれば import エラーで気付ける）、S6 一部採用（D11。限界の明記のみ）、S7 採用（完了条件）
+- Spec レビュー 2 回目（再レビュー、同じ担当）: `review_id` `38a3d3cecfdb41bebc52cf6ae7da04d9`、reviewed Spec sha256 `83bfc612a03ef1803519962c085a27d9d5cd4784f43589098a69b0a90cea4623`（commit `f33d4c75`）、`elapsed_seconds` 1362.9、指摘 4 件（important 2・minor 2）、`outside_changes` なし。採否: S1 不採用（`tools/review_eval/README.rst` が「attach-runner は runner の after_run（設定の信頼された argv）が起動し、環境に depth があっても収集する」と #352 で決めた境界であり、runner の子のモデルは設定があれば `review-eval ingest` を直接実行することもできるので、マーカーは境界を強めない。`tools/agent_runner` の変更は所有外）、S2 採用（batch 前の sweep のテスト）、S3 採用（review_dir の fallback）、S4 採用（collection テストの HOME・XDG_CONFIG_HOME）
