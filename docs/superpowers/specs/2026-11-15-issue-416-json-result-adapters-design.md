@@ -155,3 +155,12 @@ AGENTS.md の「テストの採用基準」に従う。
 - 採否: D1（blocking、codex のエラー解除で空 object を許すと認証・承認の診断が消える）を採用。D4・設計の codex・テスト・受け入れ基準に反映した
 - `decide` の結果: `next: stop`（理由 `blocking: D1`）。reflected の Spec SHA-256 は `ce624d854375254c75238926eeace3aab1c81dd72a34333a0d13350cf67f552f`（commit `0f46416d`）。採用・反映済みの blocking で `wrong_approach`・`questions_for_user`・`needs_judgment`・作るものの変更が無いため、利用者の 2026-11-15 の続行指示（Issue #427 の run での指摘。#455 で修正を追跡中）に従い、止まらずに Spec レビューへ進んだ
 - レビューの記録は commit しない: `PARENT_ROOT/tmp/agents/issue-416.q59dbn2x/2026-11-15-issue-416-json-result-adapters-design.design-review/review-1`
+
+### Spec レビュー 1 回目
+
+- helper: `review_spec.py`（外部担当）。`requested_agent` / `actual_agent`: `devin_swe2_max`（`--spec-review` の明示。`fallback` は空のまま、使用なし）
+- identity: model `SWE-2 Max`、session `mixed-selenium`、CLI `3000.12.57`
+- `review_id`: `082ade2fcecc4cd9b194e44e14b9f580`、reviewed の Spec SHA-256: `f3ae34d7e279134708f4e34c4322dd9eaa13e3794f76b7576522db4326f65a38`、対象 revision `747660ddfe129fcfeed82d3e40b9fa6670ca3561`
+- `elapsed_seconds`: 358.3、`outside_changes`: なし、`unprotected_changes`: 設計レビューと同じ他の作業の worktree 6 件（記録のみ）
+- 結果: `completed`、指摘 0 件、`incomplete` なし。採否の対象なし
+- レビューの記録は commit しない: `PARENT_ROOT/tmp/agents/issue-416.q59dbn2x/2026-11-15-issue-416-json-result-adapters-design.spec-review/review-1`
