@@ -30,7 +30,7 @@ Issue の決定済み事項は「結果 fence は json 完全一致」「壊れ�
 
 ### D1: 言語判定と後続必須の確認を組み合わせる
 
-- 選択した案: fence の info の最初の語を大文字小文字を無視して `json` と完全一致で比較する。閉じた fence に明示言語があり、それが `json` でなければ例とする（jsonc/json5 も含む）。言語なし・未閉鎖 fence の既存の扱いは変えない。
+- 選択した案: fence の info の最初の語を大文字小文字を無視して `json` と完全一致で比較する。閉じた fence に明示言語があり、それが `json` でなければ例とする（jsonc/json5 も含む）。言語なし・未閉鎖 fence の既存の扱いは変えない。既存の result fence の優先も維持し、その内側では inline code や非 JSON の入れ子 fence を例として認識しない。result fence 内の壊れた object 候補は、後続結果があっても拒否する。
 - 別案: 言語判定だけ変更する。jsonc/json5 を JSON として別途 parse する。スキャナを上流の新実装へ置き換える。
 - 理由: 判定だけでは OLD + 壊れた jsonc/json5 が OLD を成功にする。別 parser は不要で、上流全面移植は独立の #436 と競合する。
 - 委任/停止条件: Issue の明示決定の実装。意図推測や壊れた結果の救済を要求する変更は採用しない。
@@ -39,7 +39,7 @@ Issue の決定済み事項は「結果 fence は json 完全一致」「壊れ�
 
 - 選択した案: 閉じた例（inline code と明示非 JSON fence）の中で object 候補の decode が失敗したら、例の終端を越えた位置に有効な結果候補が現れるまで応答を採用しない。例内の別の正常 object や nested fragment ではこの条件を満たさない。複数の壊れた例があれば、最後の壊れた例の終端より後ろの結果が必要。
 - `json_object` では後続の正常 object（空 object を含む）が必要で、通常どおり最後の object を返す。正常 array は従来どおり丸ごと消費し、その内側では条件を満たさない。
-- `first_json_object` の通常の先頭非空 object 選択は維持する。ただし例外許容の条件は同じく最後の壊れた例の終端より後ろに正常な非空 object、または従来どおり読める正常 array の非空 object が存在すること。後続の存在を検証しても、選択を先頭から最後へ変えない。
+- `first_json_object` の通常の先頭非空 object 選択は維持する。ただし壊れた例の例外許容には、選択した先頭結果自体が最後の壊れた例の終端より後ろにあることを必要とする（正常 array 内から従来どおり選ぶ場合は array の開始位置で判断する）。先頭候補が例より前なら、後ろに DONE があっても None とし、別の候補への差し替えはしない。OLD + 壊れた jsonc + DONE で OLD を新たに成功としない。adapter の first/last 選択ポリシーを決める #416 の作業は行わない。
 - 別案: 壊れた例は位置を問わず無視する。jsonc/json5 だけ後続必須にし、他言語や inline code は無条件で許容する。
 - 理由: 古い結果へのフォールバックを防ぎ、既存の例の共通処理で一貫した安全側の判定にする。対象と無関係な parser 書換えを避ける。
 - 委任/停止条件: Issue の「例＋後続必須」を共有処理に反映する判断。後続の壊れた裸候補・結果 fence は例の有無にかかわらず拒否する。
@@ -68,13 +68,18 @@ Issue の決定済み事項は「結果 fence は json 完全一致」「壊れ�
 - 動作環境: Dev Container、捕捉した main 以降のローカル parser と pi/devin collect。保存した偽イベントのみで検証し、実 CLI・有料モデル・実 API による再現は行わない。
 - 実入力: 非 ASCII の説明と複数行 jsonc コメント付き / json5 末尾カンマ付き設定例、続く厳密な `{"status":"DONE"}`（json fence または裸）。両経路で success と payload 一致を観測する。
 - 防御範囲: OLD + 壊れた jsonc/json5 で後続結果が無い場合は response_failed/payload None。例内の後続 object も例終端より前なら救済しない。壊れた json/JSON fence、言語なし fence、裸の壊れた後続候補、wrapper 内の正常 fragment の救済は禁止。未閉鎖 fence・正常例の候補・array/first の既存選択を今回の文書で保証する範囲以上に変更しない。
-- テスト: S のガードを共有 helper 側に代表だけ追加し、正常な例＋後続結果を陽性対照に残す。adapter ごとの同じ規則の全組合せや文書固定値テストをコミットしない。pi/devin の実経路は SESSION の一時 probe で両方実行する。
+- テスト: S のガードを共有 helper 側に代表だけ追加し、正常な例＋後続結果を陽性対照に残す。後続無しの拒否は壊れた object 候補を含む例が対象であり、壊れた候補が無い正常 object だけの jsonc/json5 例（OLD が先行する場合を含む）は D3 に従って候補になる。この委任された限界は Plan の一時 probe でも確認する。result fence 内の入れ子例は D1 の優先に従う。adapter ごとの同じ規則の全組合せや文書固定値テストをコミットしない。pi/devin の実経路は SESSION の一時 probe で両方実行する。
 - 一致条件: 実装・docstring・pi/devin runtime 文書に、厳密な json 言語判定、壊れた例の後続必須、正常例の候補化と上記限界を反映する。
 
 ## レビュー記録
 
 - 設計レビュー（外部 helper、1 回）: `review_dir=/workspaces/reso-world/tmp/agents/issue-425.55cedqeq/2026-11-15-issue-425-json-example-boundary-design.design-review/review-1`、review_id `fad23de98ce04c1ea9ab86b6083310e9`、reviewed spec SHA-256 `ea0bf7d3eecb14f943018b84a2f1deac01e0c017b5b08094a70e59e29f973091`。requested/actual はともに `pi_openai-codex_gpt6-sol_xhigh`、identity は model `gpt-6.1-sol` / provider `openai-codex` / effort `xhigh`。fallback 使用なし、elapsed_seconds=113.28434491099324、exit_code=0、stop_confirmed=true。sound、concerns/questions/incomplete は空のため採否対象なし。
 - outside_changes は空。unprotected_changes は既存の消失した `/tmp/pr-review-376-*` 4 件、`/tmp/review-fix-planning.*` 2 件と、並行する #434 の feature/attempt worktree の変化（詳細は review.json）。いずれも本 Issue の対象外で、回収・変更はしない。本 Issue の HEAD・index・tracked/untracked は監査で維持された。
+
+- Spec レビュー初回（外部 helper）: `review_dir=/workspaces/reso-world/tmp/agents/issue-425.55cedqeq/2026-11-15-issue-425-json-example-boundary-design.spec-review/review-1`、review_id `562a6b6cfec84b9f9633db6936f7a44b`、reviewed spec SHA-256 `cfc7e45dbad32596a2a3e4515583e64897591770c8d766efaf5132187ccf0202`。requested/actual はともに `pi_opencode-go_deepseek4-flash_max`、identity は `deepseek-v4.1-flash` / `opencode-go` / `max`。fallback 使用なし、elapsed_seconds=1252.5900289419951、exit_code=0、stop_confirmed=true。outside_changes 空、unprotected_changes は既存消失登録と #434 の feature/attempt worktree（詳細は review.json）。本 Issue の checkout の保護は維持された。
+- S1 minor 採用: D3 の委任判断と、壊れた候補がある場合に限る後続必須の関係を受け入れ基準・Plan に明記する。D3 の意味は変更しない。
+- S2 important 採用: result fence の優先と、その内側で inline/入れ子 fence を例としない既存の境界を D1 と文書・Plan へ明記する。拒否の保証を維持する明確化であり、対象機能は変えない。反映後に同じ担当で Spec 再レビューを 1 回行う。
+- S3 minor 採用: first_json_object は選択した候補自体が最後の壊れた例より後ろにある場合だけ許容する。先頭選択の意味を変えず、OLD + 壊れた jsonc + DONE の新たな誤採用を防ぐ安全側の限定を D2 に反映する。
 
 ## 検証・終了
 
