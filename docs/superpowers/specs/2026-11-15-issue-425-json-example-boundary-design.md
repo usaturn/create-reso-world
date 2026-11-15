@@ -81,6 +81,8 @@ Issue の決定済み事項は「結果 fence は json 完全一致」「壊れ�
 - S2 important 採用: result fence の優先と、その内側で inline/入れ子 fence を例としない既存の境界を D1 と文書・Plan へ明記する。拒否の保証を維持する明確化であり、対象機能は変えない。反映後に同じ担当で Spec 再レビューを 1 回行う。
 - S3 minor 採用: first_json_object は選択した候補自体が最後の壊れた例より後ろにある場合だけ許容する。先頭選択の意味を変えず、OLD + 壊れた jsonc + DONE の新たな誤採用を防ぐ安全側の限定を D2 に反映する。
 
+- Spec 再レビュー（外部 helper、2 回目・上限）: `review_dir=/workspaces/reso-world/tmp/agents/issue-425.55cedqeq/2026-11-15-issue-425-json-example-boundary-design.spec-review/review-2`、review_id `df05d81f931d42d78c6ed3fa10db4e2f`、reviewed spec SHA-256 `8e452765e7e9e8fb68aec504d657e9f6cb462be82993496426d3040624282603`。requested/actual はともに `pi_opencode-go_deepseek4-flash_max`、identity は `deepseek-v4.1-flash` / `opencode-go` / `max`。fallback 使用なし、elapsed_seconds=1133.3505372719956、exit_code=0、stop_confirmed=true。findings/incomplete は空、採否対象なし。outside_changes 空。unprotected_changes は既存消失登録、別の PR #458 の review/loop 領域および #434 feature worktree の変化（review.json に完全パス記録）。本 Issue の checkout は不変。
+
 ## 検証・終了
 
 baseline: `uv run --locked pytest tools/agent_runner/tests/adapters/test_json_result.py -q` は終了コード 0（4 passed）。ログは SESSION/baseline.log。
