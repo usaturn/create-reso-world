@@ -71,6 +71,11 @@ Issue の決定済み事項は「結果 fence は json 完全一致」「壊れ�
 - テスト: S のガードを共有 helper 側に代表だけ追加し、正常な例＋後続結果を陽性対照に残す。adapter ごとの同じ規則の全組合せや文書固定値テストをコミットしない。pi/devin の実経路は SESSION の一時 probe で両方実行する。
 - 一致条件: 実装・docstring・pi/devin runtime 文書に、厳密な json 言語判定、壊れた例の後続必須、正常例の候補化と上記限界を反映する。
 
+## レビュー記録
+
+- 設計レビュー（外部 helper、1 回）: `review_dir=/workspaces/reso-world/tmp/agents/issue-425.55cedqeq/2026-11-15-issue-425-json-example-boundary-design.design-review/review-1`、review_id `fad23de98ce04c1ea9ab86b6083310e9`、reviewed spec SHA-256 `ea0bf7d3eecb14f943018b84a2f1deac01e0c017b5b08094a70e59e29f973091`。requested/actual はともに `pi_openai-codex_gpt6-sol_xhigh`、identity は model `gpt-6.1-sol` / provider `openai-codex` / effort `xhigh`。fallback 使用なし、elapsed_seconds=113.28434491099324、exit_code=0、stop_confirmed=true。sound、concerns/questions/incomplete は空のため採否対象なし。
+- outside_changes は空。unprotected_changes は既存の消失した `/tmp/pr-review-376-*` 4 件、`/tmp/review-fix-planning.*` 2 件と、並行する #434 の feature/attempt worktree の変化（詳細は review.json）。いずれも本 Issue の対象外で、回収・変更はしない。本 Issue の HEAD・index・tracked/untracked は監査で維持された。
+
 ## 検証・終了
 
 baseline: `uv run --locked pytest tools/agent_runner/tests/adapters/test_json_result.py -q` は終了コード 0（4 passed）。ログは SESSION/baseline.log。
