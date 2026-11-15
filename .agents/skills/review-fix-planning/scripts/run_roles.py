@@ -443,6 +443,31 @@ def failure_reason(error: Exception) -> str:
     return str(error) if isinstance(error, RoleInputError) else verifier.failure_category(error)
 
 
+def collect_review_dir(planning_file: Path | None, phase: str) -> None:
+    """実行した役割の planning 記録を、置き換え前の版として review-eval へ渡す。
+
+    記録の保存先は ``<review_dir>/verified/<HEAD12>.planning.json`` の 2 つ上。planning_file が無いときは
+    呼ばない。失敗しても実行の結果・終了コードを変えない。
+    """
+    if planning_file is None:
+        return
+    try:
+        from tools.review_eval.capture import collect
+    except Exception:  # noqa: BLE001 - import の失敗で実行の結果を変えない
+        return
+    try:
+        target = Path(planning_file).resolve()
+        collect(
+            route="review-fix-planning",
+            event="run_roles",
+            review_dir=target.parent.parent,
+            files=(target,),
+            context={"helper": "run_roles.py", "command": "run_roles", "phase": phase},
+        )
+    except Exception:  # noqa: BLE001, S110 - 収集の失敗で実行の結果を変えない
+        pass
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--phase", choices=("implement", "self-review"), required=True)
@@ -499,6 +524,8 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 2
+    finally:
+        collect_review_dir(args.planning_file, args.phase)
     print(
         json.dumps(
             {
