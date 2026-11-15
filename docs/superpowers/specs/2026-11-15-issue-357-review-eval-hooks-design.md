@@ -109,3 +109,7 @@
 - 各 `collect_*` の細部（`context` の項目、ファイルの存在確認、例外の握りつぶし方）
 - collection テストの fixture の構成（偽の記録の作り方、`collect` の差し替え方法）
 - `records.md` の 1 節の文面
+
+## レビュー記録
+
+- 設計レビュー 1 回目（helper `review_design.py`、外部担当）: requested/actual `pi_openai-codex_gpt6-sol_xhigh`（identity: openai-codex `gpt-6.1-sol` xhigh）、fallback 未使用、`review_id` `ad04a1a0c1a4469fb5b42db26c48b25d`、reviewed Spec sha256 `61aa37151b65f3c30db64a09577672c18d722ecc639d0a5d3ab9f098fad6d896`（commit `af261c28`）、`elapsed_seconds` 154.7、verdict `sound`・concerns 0 件、`outside_changes` なし、`unprotected_changes` は他作業の `/tmp/pr-review-376-*`・`/tmp/review-fix-planning.*` の 6 件（このレビューとは無関係、記録のみ）。review_dir は run の SESSION（commit しない）
