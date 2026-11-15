@@ -2,7 +2,7 @@
 
 ## 管理・実行許可
 
-- 状態: `draft`（`approved` ではない。内容の承認は受けていない）
+- 状態: `completed`（PR #458 の PR 修正ループ 1 サイクル目で修正不要と確かめた。下の「結果」。内容の承認は受けていない）
 - 対象: https://github.com/usaturn/create-reso-world/issues/357 （親ボード #349 の子 `review-eval-hooks`）
 - 利用者の指示（2026-11-15、引用）: `/issue-to-pr #357 --merge --design-review pi_openai-codex_gpt6-sol_xhigh --spec-review pi_opencode-go_deepseek4-flash_max --implement pi_opencode-go_deepseek4-flash_max --assign implement=pi_opencode-go_deepseek4-flash_max --assign inspect=devin_swe2_max,pi_opencode-go_deepseek4-flash_max,pi_openai-codex_gpt6-sol_xhigh`
 - 許可された範囲: issue-to-pr の委任（通常の設計判断を推奨案で決め、検証・commit・push・PR 作成・PR 修正ループ・`finalize.py` によるマージまで進める）。この指示は実行許可であり、Spec の内容の承認ではない
@@ -126,3 +126,20 @@
 - 設計レビュー 1 回目（helper `review_design.py`、外部担当）: requested/actual `pi_openai-codex_gpt6-sol_xhigh`（identity: openai-codex `gpt-6.1-sol` xhigh）、fallback 未使用、`review_id` `ad04a1a0c1a4469fb5b42db26c48b25d`、reviewed Spec sha256 `61aa37151b65f3c30db64a09577672c18d722ecc639d0a5d3ab9f098fad6d896`（commit `af261c28`）、`elapsed_seconds` 154.7、verdict `sound`・concerns 0 件、`outside_changes` なし、`unprotected_changes` は他作業の `/tmp/pr-review-376-*`・`/tmp/review-fix-planning.*` の 6 件（このレビューとは無関係、記録のみ）。review_dir は run の SESSION（commit しない）
 - Spec レビュー 1 回目（helper `review_spec.py`、外部担当）: requested/actual `pi_opencode-go_deepseek4-flash_max`（identity: opencode-go `deepseek-v4.1-flash` max）、fallback 未使用、`review_id` `430a8c53237d4b38a2c1a22c8b4d0eb5`、reviewed Spec sha256 `42158190f2eb24ea21846ee0adce3c3604426614f2572394fec9c6ab3a7e0b9f`（commit `00349c55`）、`elapsed_seconds` 1121.8、指摘 7 件（important 4・minor 3）、`outside_changes` なし、`unprotected_changes` は設計レビューと同じ他作業の 6 件。採否: S1 採用（D9）、S2 採用（数え方）、S3 一部採用（D10。接続は全 event、無効条件の網羅は不採用）、S4 採用（`AGENT_RUNNER_DEPTH` の除去。HOME の fixture は不要として不採用）、S5 不採用（Issue の「テストの隔離は所有する tests ディレクトリ内で完結させる（`REVIEW_EVAL_CONFIG` を一時パスまたは空にする）」が、所有する tests ディレクトリの conftest での隔離を許している。`tools/review_eval/tests/support.py` は変更せず読むだけで、壊れれば import エラーで気付ける）、S6 一部採用（D11。限界の明記のみ）、S7 採用（完了条件）
 - Spec レビュー 2 回目（再レビュー、同じ担当）: `review_id` `38a3d3cecfdb41bebc52cf6ae7da04d9`、reviewed Spec sha256 `83bfc612a03ef1803519962c085a27d9d5cd4784f43589098a69b0a90cea4623`（commit `f33d4c75`）、`elapsed_seconds` 1362.9、指摘 4 件（important 2・minor 2）、`outside_changes` なし。採否: S1 不採用（`tools/review_eval/README.rst` が「attach-runner は runner の after_run（設定の信頼された argv）が起動し、環境に depth があっても収集する」と #352 で決めた境界であり、runner の子のモデルは設定があれば `review-eval ingest` を直接実行することもできるので、マーカーは境界を強めない。`tools/agent_runner` の変更は所有外）、S2 採用（batch 前の sweep のテスト）、S3 採用（review_dir の fallback）、S4 採用（collection テストの HOME・XDG_CONFIG_HOME）
+
+## 結果（review-fix-planning、PR #458 サイクル 1）
+
+- planner: `claude-opus-5-5`（claude-code）。対象 HEAD `bddbc48c85050c22ae30aaa0b434904c017d713c`、base `main` `eb9e378bd803a77c75fa01a30d92ccf0b3682f48`（検証の時点の先端。HEAD の祖先なので head のツリーで検証した）
+- レビュアーの構成（pr-review-fix-loop の run `34efcb3c80dd446780470fbada753e74`、全員このサイクルで実行・受け付け）:
+
+  | レビューファイル | 担当 | モデル | ランタイム | 所要 | Merge recommendation |
+  | --- | --- | --- | --- | --- | --- |
+  | `SWE-2-Max.md` | `devin_swe2_max` | SWE-2 Max | devin | 1264 秒 | Approve |
+  | `deepseek-v4.1-flash.md` | `pi_opencode-go_deepseek4-flash_max` | deepseek-v4.1-flash | pi | 1584 秒 | Approve |
+  | `gpt-6.1-sol.md` | `pi_openai-codex_gpt6-sol_xhigh` | gpt-6.1-sol | pi | 684 秒 | Approve |
+
+- 分類: 解消済み 0 / 対応する 0 / 対応しない 0（3 名とも指摘・Unverified candidates 0 件）
+- 確認済みの一覧（review-verify mode cycle、司令塔が実行）: `reviews/usaturn/create-reso-world/#458-feat-issue-357-review-eval-hooks/verified/bddbc48c8505.json`。confirmed 0 / not_reproduced 0 / unverified 0、coverage.remaining なし。レビュアーの declined のうち shim の実際の subprocess は、HEAD を detach した隔離 worktree と一時 store で、相対の `REVIEW_EVAL_CONFIG` で `review_findings.py validate` を実行して確かめた（有効時は保存、`REVIEW_EVAL_CONFIG=` では書き換えた版を保存せず、どちらも終了 0・標準出力なし）
+- 検証（head `bddbc48c` のツリー、作業ツリー clean）: `uv run pytest tests/skills .agents/skills .agents/scripts tools -q`（1605 passed）、`bash scripts/check-layout.sh`（PASS）、`bash .devcontainer/run-tests.bash`（27 件 PASS）。すべて終了 0
+- 自己レビュー: 修正が無いため行っていない（結論 2）
+- 結論: 2（修正不要でマージ）。未確認の事項: 実データ・実 store での収集（Issue の対象外）
