@@ -23,7 +23,7 @@ Pi の通常の issue-to-pr → SDD で初回の Task レビューが scope 不�
 2. 初回 Task レビューは `task`、修正後の限定再レビューは `re-review`、統合後の最終ブランチ全体レビューは `branch`。文脈不足を補った再送は元の scope のままであり、修正後の限定再レビューとは区別する。
 3. マーカーだけでなく、選択した upstream のレビュー用テンプレートに必要事項を埋め、その本文と証拠を渡す。Task は Task brief・実装報告・Task の開始前 BASE..HEAD の review package・受け入れ基準と共通制約。限定再レビューは前回指摘の原文・修正報告・修正範囲の diff。ブランチ全体は要求・全体の BASE..HEAD の diff・deferred/parked の指摘を扱う。詳細は選択したテンプレートに従う。
 4. `NEEDS_CONTEXT` を成功・指摘なしとして扱わない。不足した文脈を補って再依頼するか、解消できなければ停止する。
-5. レビュー子の読み取り専用・テスト実行禁止は維持する。
+5. レビュー子の読み取り専用・テスト実行禁止は維持する。上流テンプレートに focused test 実行を許す記述があっても、このリポジトリの禁止を優先し、テストや最小再現は実装担当か調整役に依頼する。依頼例にもこの制限を含める。
 
 短い表で 3 種類の違いと upstream のテンプレートを対応させる。テンプレート本文そのものを常設指示に複製せず、選択したスキルのテンプレートに委ねる。`## Response Persona` 以降は利用者所有のため、1 バイトも変更しない。
 
@@ -69,6 +69,12 @@ Pi の通常の issue-to-pr → SDD で初回の Task レビューが scope 不�
 - review_id: `23916ae614fa401baf452d7c4d9cc16e`、reviewed Spec SHA-256: `ef57b4e115e2688cb312b3384ed0752895635e1a0645550150fcc21c9e3f5b86`。
 - 結果: `completed` / `sound`、concerns・questions_for_user・incomplete は空。採否対象なし。設計の小ささと安全境界、静的検証と後続評価の分離を妥当と評価。
 - attempts の終了コード 0、stop_confirmed=true。outside_changes は空。unprotected_changes は既存の `/tmp/pr-review-376-{2f0d17b0,79fe98e5,7f95b4e6,c9a6d3e9}/worktree` と `/tmp/review-fix-planning.{9AkFc2,a6ogtH}/worktree` の6登録で、いずれも開始前から不在の非保護 checkout（unavailable_before）。本作業の checkout の変化ではなく、他作業の領域なので変更・削除しない。
+
+- Spec レビュー 1 回目: 外部 helper、明示担当・actual_agent は `pi_opencode-go_deepseek4-flash_max`、identity は `opencode-go/deepseek-v4.1-flash`（max）、fallback 未使用。所要 768.69 秒。
+- review_dir: `/workspaces/reso-world/tmp/agents/issue-434.pe2kx9ad/2026-11-15-issue-434-review-scope-design.spec-review/review-1`
+- review_id: `dd589fcd1e8044aeae7713383b8e6d4d`、reviewed Spec SHA-256: `3c58702b51876f6a22b762f28bb7ebb144d1fa5f7caf6c39eb1301abcb7ea20a`。
+- 結果: `completed`、S1（minor）を採用。上流テンプレートの focused test 許可よりもレビュー子のテスト実行禁止を優先する旨を変更内容5と依頼例の条件に反映した。既存の防御範囲の明確化であり、作るものは変えない。incomplete は空。minor の採用のため再レビューは行わない。
+- attempts の終了コード 0、stop_confirmed=true。outside_changes は空。unprotected_changes は設計レビューに記した既存6登録と、他作業の `/workspaces/reso-world/.worktrees/issue-425-json-example-boundary`、`/workspaces/reso-world/tmp/agents/issue-425.55cedqeq/review-runner/design-1/e0c56dd8a4a74415b0fface3b59eab26/attempt-1/worktree`。保護対象の本 worktree に変化はなく、他作業の領域を変更しない。
 
 ## 調査根拠
 
