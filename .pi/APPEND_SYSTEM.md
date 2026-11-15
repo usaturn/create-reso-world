@@ -17,7 +17,18 @@
 - 実装は sp-implementer、レビューは sp-review、調査は sp-recon / sp-research、デバッグは sp-debug を使う。
 - Superpowersワークフロー内で、選択したスキルの委譲手順に従う。
 - 複数タスクは同期呼び出しで直列に実行する。同じworktreeへ同時に書き込む子は1件まで。
-- レビュー子は読み取り専用。テスト実行は実装担当か調整役が行う。
+- レビュー子は読み取り専用。テスト実行は実装担当か調整役が行う。上流テンプレートに focused test の実行を許す記述があってもこの禁止を優先し、依頼例にもこの制限を含める。
+- sp-review への依頼本文には、`Review scope: task`・`Review scope: re-review`・`Review scope: branch` のうち対応するマーカーを単独行で必ず1つだけ入れる。これは API 引数ではない。
+- scope は、初回の Task レビューが `task`、修正後の限定再レビューが `re-review`、統合後のブランチ全体レビューが `branch`。文脈不足を補って再送するときは元の scope のままとし、修正後の限定再レビューとは区別する。
+- マーカーだけでは依頼として不十分。選択した upstream テンプレートの必要事項を埋めた本文と証拠を渡し、テンプレート本文はこの節に複製しない。
+
+| scope | 使う場面 | upstream テンプレート | 主な証拠 |
+| --- | --- | --- | --- |
+| `task` | 初回の Task レビュー | `subagent-driven-development/task-reviewer-prompt.md` | Task brief、実装報告、Task の BASE..HEAD の review package、受け入れ基準と共通制約 |
+| `re-review` | 修正後の限定再レビュー | `subagent-driven-development/re-review-prompt.md` | 前回指摘の原文、修正報告、修正範囲の diff |
+| `branch` | 統合後のブランチ全体レビュー | `requesting-code-review/code-reviewer.md`（`subagent-driven-development/references/final-review.md` の手順） | 要求、全体の BASE..HEAD の diff、deferred/parked の指摘 |
+
+- 選択したテンプレートの入力・境界・出力形式に従う。`NEEDS_CONTEXT` はレビュー未実施であり、成功や指摘なしとして扱わない。不足した文脈を補って同じ scope で再依頼し、解消できなければ停止する。
 - 予約ref・Issue更新・PRは調整役が一元管理する。
 - サブエージェントでの /simplify 相当には simplify-in-subagent スキルを使う。
 
