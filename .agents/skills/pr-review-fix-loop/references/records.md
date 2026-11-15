@@ -55,7 +55,7 @@ reviews/<owner>/<repo>/#<PR>-<ブランチ>/
 | `started_at`・`ended_at` | 時刻 |
 | `aborted_at` | `finish --abort` が abort の結果を受理した時刻（初回だけ保存）。この項目より前に作った run には無い。推測で補わない（3.1 節） |
 | `state` | `running`・`ended`・`held`（停止を確認できない試行・後処理があり、ロックを保持）・`abandoned`（結果の無いまま回収した） |
-| `result` | `{"outcome", "ended_by", "stop_reason", "merged", "cycles"}`。`outcome` は `fixes_pushed`・`no_fix_needed`・`stopped`、`ended_by` は `outcome`・`cycle_limit`・`abort`。`merged` は `true`・`false`・`null`（`null` は `finish --abort` だけが書く未確認。6 章） |
+| `result` | `{"outcome", "ended_by", "stop_reason", "merged", "cycles"}`。`outcome` は `fixes_pushed`・`no_fix_needed`・`stopped`、`ended_by` は `outcome`・`cycle_limit`・`abort`。`merged` は `true`・`false`・`null`（`null` は `finish --abort` だけが書く未確認。7 章） |
 | `resources` | `[{"path", "kind": "runner_output", "cycle", "state", "reason"}]`。`state` は `created`（未回収）・`removed`・`retained`（消さずに残した）。`retained` の `reason` は、外せない worktree・秘密が残りうるファイル・runner の結果が無い、または失敗した担当の診断を保存できなかった（4.1 節）など |
 | `notes` | `recover` で受け取った確認の事実、`finish --abort` が `merged` を PR の状態だけで決められなかった理由など |
 | `herdr_pane` | `{"state", "pane_id", "label", "reason"}`。`start` が現在の Herdr ペインの名前を変えた結果 |
@@ -161,9 +161,24 @@ finalize.py がマージを観測した後に `cycle-end` が GitHub の失敗�
 | `partial` | 64 MiB を超えたので末尾だけを読んだ。読んだ部分は照合に使うが、切れた行に最後の失敗が隠れうるので `response_extraction` の推測には観測としない |
 | `not_observed` | `exit_code`・`reported_state` が null |
 
-`review` の出力の各レビュアー（`accepted`・`rejected`）にも、`diagnostic_file` と `diagnostic_error` を返す。全レビュアーの失敗（終了コード 6）のエラーの出力にも、同じ形の `rejected` が入る（5 章）。診断を書けなかったとき（ディレクトリを作れない・書けないなど）は、`diagnostic_error` に理由（errno の名前か例外の型の名前だけ）を書き、その出力ディレクトリは worktree の登録だけを外して、ログを含めて消さずに残す（`resources` の `retained`、出力の `retained`）。`review` は止めない。
+`review` の出力の各レビュアー（`accepted`・`rejected`）にも、`diagnostic_file` と `diagnostic_error` を返す。全レビュアーの失敗（終了コード 6）のエラーの出力にも、同じ形の `rejected` が入る（6 章）。診断を書けなかったとき（ディレクトリを作れない・書けないなど）は、`diagnostic_error` に理由（errno の名前か例外の型の名前だけ）を書き、その出力ディレクトリは worktree の登録だけを外して、ログを含めて消さずに残す（`resources` の `retained`、出力の `retained`）。`review` は止めない。
 
-## 5. 終了コードと `stage`
+## 5. 収集の保存点（review-eval）
+
+`loop.py` は、次の 4 つの保存点から review-eval の収集を呼ぶ。どの呼び出しも、helper の結果・標準出力・終了コードを変えない（収集が例外を投げても握りつぶす）。既定では無効で、設定が無い・`enabled = false`・`REVIEW_EVAL_CONFIG` が空のときは何も書かない。有効なときだけ、`run_dir` の 2 つ上の review_dir の記録を写す。
+
+| サブコマンド | event | 渡す記録 |
+| --- | --- | --- |
+| `review` | `review` | sweep。レビュアーの batch を起動する直前に 1 回呼び、batch が同じモデルの `<model>.md`・findings を上書きする前の版を取る。dispatch の `finally` でもう一度呼ぶ |
+| `cycle-end` | `cycle_end` | sweep。`--record-file` の bytes を `@pr-comment/round-<round>/record.json`、`--finalize-result` の bytes を `@finalize/<サイクルの head 12 桁>/result.json` として渡す。round・head が無い・不正なときは、その仮想記録を渡さない |
+| `finish` | `finish` | sweep と `verify_loop_run=<run_id>`。サイクルの記録が参照する版のうち取れておらず、今の内容とも違うものを `lost_revision` として記録する |
+| `recover` | `recover` | `finish` と同じ |
+
+- 呼ぶ時点は、各サブコマンドの保存処理の後で、標準出力に結果を書く前である。`LoopError` で止まった場合（`hold` などで記録を保存した場合を含む）も、`run_dir` が存在すれば `finally` で収集し、元の終了コード・出力を保つ。
+- 記録の読み直しに失敗したときは、仮想記録を渡さず sweep だけを行う。例外を外へ出さない。
+- `reconcile` は収集の保存点ではない。
+
+## 6. 終了コードと `stage`
 
 | コード | 意味 | 主な `stage` |
 | --- | --- | --- |
@@ -180,7 +195,7 @@ finalize.py がマージを観測した後に `cycle-end` が GitHub の失敗�
 
 失敗の出力は `{"status": "error", "stage", "reason", "run_dir", "next", "requires_input"}`。全レビュアーの結果を受け付けられなかった（終了コード 6）ときだけ、`review` の成功の出力と同じ形の `rejected`（却下したレビュアーごとの `reason`・`rejected_stage`・`diagnostic_file`・`diagnostic_error` など。4.1 節）も入る。`requires_input` は、`next` に足すオプションと、そこに書く事実の説明（`recover` の `--operator-confirmed-stopped` など）。書きかけの値を実行させないよう、`next` にはそのオプションを含めない。失敗しても、それまでに保存した記録と runner の結果は書き換えない。引数の書式の誤り（argparse が拒否するもの）だけは、標準エラー出力の usage と終了コード 2 で、JSON を書かない。
 
-## 6. 読む側の注意
+## 7. 読む側の注意
 
 - サイクルの番号は run の中の通し番号で、判断の記録の `round`（PR 全体の通し番号）とは別である。対応は `planning.round` にある。
 - 判断の記録は、書き込み権限のある投稿者（`OWNER`・`MEMBER`・`COLLABORATOR`）と、認証済みの利用者自身（`gh api user` の login）のコメントからだけ読む。login を取れないときは、`cycle-begin`・`cycle-end` が終了コード 5（`github`）で止まる（`.agents/review-records.md` 8.1）。
