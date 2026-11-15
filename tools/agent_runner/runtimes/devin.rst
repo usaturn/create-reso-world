@@ -38,8 +38,11 @@ ATIF の ``agent.model_name`` 、 ``agent.version`` 、 ``session_id`` をそれ
 回答の後ろには改行で区切った通常の行を許すが、回答と同じ行に続く文字と、後続の JSON や壊れた JSON は失敗とする。
 JSON 形式の役割では、最終 ATIF 応答を ``json_result.json_object`` で読み、payload は最後にデコードできた JSON object とする。
 文章の後に JSON が続く形（fence 付きを含む）を受け付け、訂正では最後の有効な object を採用する。
+結果として扱う fence は、info の最初の語が大文字小文字を無視して ``json`` と完全一致する場合と言語指定のない場合であり、``jsonc`` や ``json5`` は例示として扱う。
 壊れた object 候補がある場合は応答全体を拒否し、前の有効な JSON にフォールバックしない。
-閉じたインラインコード span・閉じた非 JSON fence の中の壊れた候補は拒否に使わない（移植元の既知の限界は ``json_result`` の docstring に従う）。
+閉じたインラインコード span・閉じた非 JSON fence の中の壊れた候補は、最後のそのような例の終端より後ろに有効な結果がある場合だけ不問にする。例内の別の正常 object では条件を満たさず、後続結果が無ければ拒否する（移植元の既知の限界は ``json_result`` の docstring に従う）。
+壊れた候補を含まない例示内の有効な object は従来どおり候補になる。
+結果 fence の内側のインラインコード span と入れ子の非 JSON fence は例示として扱わない。
 最後の発話だけを読み、途中の発話や stdout から JSON を探さない隔離は変わらない。
 非ゼロ終了の判定と停止確認は runner が行う。
 
