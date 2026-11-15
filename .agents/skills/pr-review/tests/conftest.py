@@ -7,6 +7,12 @@ import pytest
 
 
 @pytest.fixture(autouse=True)
+def isolated_review_eval_config(monkeypatch: pytest.MonkeyPatch) -> None:
+    """利用者の review-eval 設定を読ませない（収集は既定で無効）。"""
+    monkeypatch.setenv("REVIEW_EVAL_CONFIG", "")
+
+
+@pytest.fixture(autouse=True)
 def isolated_git_environment(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     for name in list(os.environ):
         if name.startswith("GIT_"):

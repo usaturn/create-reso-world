@@ -227,6 +227,124 @@ def record_fields(path: Path | None, error: str | None) -> dict[str, Any]:
     return fields
 
 
+# attach-runner（after_run）の終了処理に残した収集の余白。全 review_dir で共有する。
+ATTACH_RUNNER_BUDGET_SECONDS = 30.0
+
+
+def _absolute_path(value: object) -> Path | None:
+    if not isinstance(value, (str, Path)):
+        return None
+    path = Path(value)
+    return path if path.is_absolute() else None
+
+
+def _collection_review_dir(
+    command: str,
+    parent: Path | None,
+    state: Mapping[str, Any] | None,
+    result: Mapping[str, Any],
+) -> Path | None:
+    """収集する review_dir。絶対パスを決められなければ None（prepare の review_file は basename）。"""
+    run_record = _absolute_path(result.get("run_record"))
+    if run_record is not None:
+        return run_record.parent.parent
+    if command == "complete" and result.get("status") == "success":
+        review_file = _absolute_path(result.get("review_file"))
+        if review_file is not None:
+            return review_file.parent
+    if parent is not None and state is not None:
+        try:
+            located = run_record_path(parent, state)
+        except Exception:  # noqa: BLE001 - 記録の失敗で収集を止めない
+            located = None
+        if located is not None:
+            return located.parent.parent
+    return None
+
+
+def _existing_outputs(result: Mapping[str, Any]) -> tuple[Path, ...]:
+    paths: list[Path] = []
+    for key in ("run_record", "review_file", "findings_file"):
+        path = _absolute_path(result.get(key))
+        if path is not None and path.is_file():
+            paths.append(path)
+    return tuple(paths)
+
+
+def _attach_groups(result: Mapping[str, Any]) -> dict[Path, list[Path]]:
+    """attach-runner の対象を review_dir ごとにまとめる。"""
+    groups: dict[Path, list[Path]] = {}
+    for key in ("attached", "unchanged"):
+        values = result.get(key)
+        if not isinstance(values, (list, tuple)):
+            continue
+        for value in values:
+            path = _absolute_path(value)
+            if path is None:
+                continue
+            records = groups.setdefault(path.parent.parent, [])
+            if path not in records:
+                records.append(path)
+    return groups
+
+
+def collect_outputs(
+    command: str,
+    parent: Path | None,
+    state: Mapping[str, Any] | None,
+    result: Mapping[str, Any],
+    *,
+    deadline: float | None = None,
+) -> None:
+    """pr-review の保存点の記録を review-eval へ渡す。失敗しても helper の結果・終了コードを変えない。
+
+    prepare・complete・fail は結果の run record から review_dir を決める。attach-runner は after_run の
+    環境でも収集し、全 review_dir で 1 つの deadline を共有する（期限を過ぎたら残りを呼ばない）。
+    """
+    try:
+        from tools.review_eval.capture import collect
+    except Exception:  # noqa: BLE001 - import の失敗でも helper の結果を変えない
+        return
+    context = {"helper": "review_run.py", "command": command}
+    try:
+        if command == "attach-runner":
+            groups = _attach_groups(result)
+            if not groups:
+                return
+            limit = (
+                deadline
+                if deadline is not None
+                else time.monotonic() + ATTACH_RUNNER_BUDGET_SECONDS
+            )
+            for review_dir, records in groups.items():
+                if time.monotonic() >= limit:
+                    break
+                collect(
+                    route="pr-review",
+                    event=command,
+                    review_dir=review_dir,
+                    files=tuple(records),
+                    context=context,
+                    allow_runner_child=True,
+                    deadline=limit,
+                )
+            return
+        review_dir = _collection_review_dir(command, parent, state, result)
+        if review_dir is None:
+            return
+        files = () if command == "prepare" else _existing_outputs(result)
+        collect(
+            route="pr-review",
+            event=command,
+            review_dir=review_dir,
+            files=files,
+            context=context,
+            deadline=deadline,
+        )
+    except Exception:  # noqa: BLE001, S110 - 収集の失敗は結果に返さない
+        pass
+
+
 def helper_write_exceptions(
     *,
     tool_root: Path,
@@ -869,6 +987,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
     if args.command == "attach-runner":
         result = attach_runner(args.result)
+        collect_outputs(args.command, None, None, result)
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return 1 if result["status"] == "failed" else 0
     parent: Path | None = None
@@ -903,6 +1022,7 @@ def main(argv: list[str] | None = None) -> int:
     if result["status"] == "failed" and state is not None and result.get("cleanup") != "success":
         result["retained_paths"] = retained_paths(state)
     result.setdefault("run_record", None)
+    collect_outputs(args.command, parent, state, result)
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 1 if result["status"] == "failed" else 0
 
