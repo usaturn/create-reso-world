@@ -2,7 +2,7 @@
 
 ## 管理・実行許可
 
-- 状態: `draft`
+- 状態: `completed`
 - 対象: `usaturn/create-reso-world#434`
 - Issue: https://github.com/usaturn/create-reso-world/issues/434
 - 利用者の指示: `#434 --merge --design-review pi_openai-codex_gpt6-sol_xhigh --spec-review pi_opencode-go_deepseek4-flash_max --implement pi_opencode-go_deepseek4-flash_max --assign implement=pi_opencode-go_deepseek4-flash_max --assign inspect=devin_swe2_max,pi_opencode-go_deepseek4-flash_max`（元の改行を空白で表示）
@@ -83,4 +83,47 @@ Pi の通常の issue-to-pr → SDD で初回の Task レビューが scope 不�
 - 同パッケージ `src/superpowers/root-prompt.ts` の SDD adapter と `src/superpowers/skill-entry.ts`
 - `/home/vscode/.pi/agent/git/github.com/obra/superpowers/skills/subagent-driven-development/task-reviewer-prompt.md` と `re-review-prompt.md`
 - 同 checkout の `skills/subagent-driven-development/references/final-review.md` と `skills/requesting-code-review/code-reviewer.md`
-- 調査担当 sp-recon の読み取り専用調査。所要約18分。パッケージ 1.14.4、upstream 7.0.2 を確認。Issue 本文・全コメント（0件）・先行依存（0件）・親不在を確認した。
+- 調査担当 sp-recon の読み取り専用調査。所要約18分は子の自己申告でありcontrollerの実測内訳ではない。パッケージ 1.14.4、upstream 7.0.2 を確認。Issue 本文・全コメント（0件）・先行依存（0件）・親不在を確認した。
+
+## PR #459 のレビュー修正判断（サイクル1）
+
+実行許可は冒頭の issue-to-pr と `--merge`。planner は `openai-codex/gpt-6.1-sol`（Pi、runtime環境で確認）。既存の本Specと対応Planを更新し、レビューごとの新規Specは作らない。内容承認を推測せず、実施した範囲の結果を completed として記録する。
+
+| レビューファイル | モデル / runtime | 対象HEAD | このサイクルで再実行 | 推奨 |
+|---|---|---|---|---|
+| `SWE-2-Max.md` | SWE-2 Max / devin | `15f39b2eb931` | true、Initial | Approve |
+| `deepseek-v4.1-flash.md` | deepseek-v4.1-flash / pi | `15f39b2eb931` | true、Initial | Approve |
+
+- 入力の保存先: `/workspaces/reso-world/reviews/usaturn/create-reso-world/#459-fix-issue-434-review-scope/`。両レビュアーの本文・候補一覧・現行PRの対応を照合した。両方のactive指摘・unverified候補は0件で、前のサイクルの判断もない。分類は解消済み0 / 対応する0 / 対応しない0。自己確認で追加すべき致命的な欠陥も見つからなかった。
+- 明示した担当とactual_agentはそれぞれ `devin_swe2_max`・`pi_opencode-go_deepseek4-flash_max`。runner観測モデルはSWE-2 Max（CLI3000.12.57、provider不明）とopencode-go/deepseek-v4.1-flash max。fallbackなし。レビュー時間はそれぞれ260.24秒・552.90秒、並行実行のループレビュー工程は609.77秒。全担当の停止・回収を確認、retainedなし。保護checkoutのoutside_changesなし。非保護の他作業領域は触っていない。
+- PRの全変更ファイルと関連の指示保護検査、導入済みロール、upstreamテンプレート、既存の委譲案内を確認した。deepseekが読まなかったSESSIONの例・ログはcontrollerが読み、3例の意味と実コマンドの結果を照合した。一括検査を無用に再実行する代わりに同一clean HEADの既存証拠を確認し、下記のbase前進に必要な組み合わせの検証だけは実際にやり直した。
+- 確認済みの一覧: 同保存先の `verified/15f39b2eb931.json` と `.md`。工程の記録: `verified/15f39b2eb931.planning.json`。mode cycle、候補0件。後続SDD3回の効果評価は未実施としてIssueに残すものであり、実装の未確認候補や実機成功へ読み替えない。
+
+### 要件との照合と結論
+
+| 条件 | 今回の判断 | 現行版での観測・証拠 |
+|---|---|---|
+| 初回Task・限定再レビュー・全体を区別する | 追加修正不要 | `.pi/APPEND_SYSTEM.md:21-29` とinstalled role、3つの入力例が対応。Task初回はNEEDS_CONTEXTなし |
+| テンプレート本文と必要な証拠を渡す | 追加修正不要 | 同`:23-31`、Task brief/report/全Task diff、限定例の原指摘とfix diff、全体例のbranch diffを照合 |
+| NEEDS_CONTEXTを未実施とし安全境界を維持 | 追加修正不要 | 同`:20,22,31`、上流Tests許可に対する禁止優先、Persona保護検査 |
+| パッケージ・共通スキル等を変更しない | 既に満たす | PRの差分は常設指示・Spec・Planの3ファイルのみ。恒久テストの追加なし |
+| 将来のSDD3回による効果評価 | 今回の実装検証とは区別 | PRのRefs #434と残項目に明示。実機成功として扱わず、マージ後にIssueへ記録する |
+
+共有するscope・テンプレート入力・テスト権限の照合はcontrollerが統合担当として行った。初回実装から判定の意味や防御範囲を変えていないため、新しい修正経路・ガード・失敗注入は不要。設計見直しのきっかけに当たる「対応する」項目はない。
+
+結論は **2: 修正不要として最終化へ進む**。コード修正・run_rolesによる実装や修正後自己レビュー・fix-checkは未実施（不要、回数0）。設定されているimplement担当を使わずにselfへ切り替えたのではなく、修正そのものが無い。自己レビューの枠は消費していない。
+
+### 実行した検証とbaseの前進
+
+初回のclean HEAD `15f39b2eb93199c7b2476dac379b1fb1d49d2052` で、27本のscript検査・1584件のpytest・layout・diff検査が成功。最終化の照合時、base mainが `eb9e378bd803a77c75fa01a30d92ccf0b3682f48` から `885380557b9be80b77bbec6d94f3a34925db04ae`（PR #458）へ前進していた。PRのHEADはrebase/mergeせず、隔離した一時worktreeで新baseを合わせたツリー `a0b398f09e89ea755dcdcd7670539ce8853db6cf` を作り、次をすべて再実行した。
+
+| コマンド | 結果 | 所要秒 |
+|---|---|---|
+| `bash .devcontainer/run-tests.bash` | exit0、27本成功 | 130.005 |
+| `bash scripts/check-layout.sh` | exit0 | 0.537 |
+| `uv run pytest tests/skills .agents/skills .agents/scripts tools` | exit0、1605 passed | 904.324 |
+| `git diff --check` | exit0 | 0.007 |
+
+一時環境で各検証プロセスのVIRTUAL_ENVだけをunsetし、uvはそのworktreeの環境を選んだ。初回の親VIRTUAL_ENV不一致の警告はこの再検証では無い。全検証の実ログを読んだ。上記のmerge tree・HEAD・base・実argv/終了コードは `/workspaces/reso-world/tmp/agents/review-fix-planning-pr459.tqiydn1s/merge-verification.json`、`checks.json`、`merge-verify-{1,2,3,4}.log` に保存。一時worktreeと親ディレクトリは検証後に回収した。検証せずbaseだけを新値へ書き換えていない。
+
+これ以降のマージ・Issue更新の結果は、状況コメントと完了報告に記録し、本Specへ結果だけのcommitを追加しない。
