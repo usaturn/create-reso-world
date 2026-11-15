@@ -2,7 +2,7 @@
 
 ## 管理
 
-- 状態: draft
+- 状態: completed（PR #462 の修正ループ 1 サイクル目で修正不要と確認。実行許可は上記のまま。内容の承認ではない）
 - Issue: https://github.com/usaturn/create-reso-world/issues/416
 - 実行許可: 利用者が issue-to-pr を明示して起動した（2026-11-15。引数は `#416 --merge --design-review pi_openai-codex_gpt6-sol_xhigh --spec-review devin_swe2_max --implement devin_swe2_max --assign implement=devin_swe2_max --assign inspect=devin_swe2_max,claude-code_ollama_opus_max,pi_openai-codex_gpt6-sol_xhigh`）。推奨案で設計を決め、実装・検証・commit・push・PR 作成と、`--merge` の PR 修正ループ（マージは `finalize.py` だけ）まで進める許可である。内容の承認（`approved`）ではない
 - 先行依存: #425 は PR #461（merge commit `9800cf36445dd4f1ec67df6e911060df39d8622e`）でマージ済み。#425 の Issue は open のままだが、#416 へのコメント（2026-11-15T07:19Z）で例示境界の仕様が確定している
@@ -164,3 +164,22 @@ AGENTS.md の「テストの採用基準」に従う。
 - `elapsed_seconds`: 358.3、`outside_changes`: なし、`unprotected_changes`: 設計レビューと同じ他の作業の worktree 6 件（記録のみ）
 - 結果: `completed`、指摘 0 件、`incomplete` なし。採否の対象なし
 - レビューの記録は commit しない: `PARENT_ROOT/tmp/agents/issue-416.q59dbn2x/2026-11-15-issue-416-json-result-adapters-design.spec-review/review-1`
+
+## PR 修正ループ（review-fix-planning）
+
+### サイクル 1（HEAD `eb744e3f35b3512e1375bd3100f6949c2861a622`）
+
+- loop run: `0e01a919962049ad8b58c70269451974`。planner: claude-opus-5-5（claude-code）
+- レビュアーの構成（`--assign inspect=devin_swe2_max,claude-code_ollama_opus_max,pi_openai-codex_gpt6-sol_xhigh`）:
+
+| レビュアー | モデル（観測） | 結果 | Merge recommendation |
+|---|---|---|---|
+| devin_swe2_max | SWE-2 Max | 受け付け、指摘 0 件 | Approve |
+| pi_openai-codex_gpt6-sol_xhigh | gpt-6.1-sol | 受け付け、指摘 0 件 | Approve |
+| claude-code_ollama_opus_max | deepseek-v4.1-flash:1017（観測された ID は `deepseek-v4.1-flash:1017[1m]`） | 却下（`payload`）。観測したモデル ID が保存名に使えず、pr-review の prepare で失敗してレビューを行わなかった。同じサイクルの再実行 1 回も同じ理由で却下 | なし |
+
+- 確認済みの一覧: `reviews/usaturn/create-reso-world/#462-fix-issue-416-json-result-adapters/verified/eb744e3f35b3.json`（候補 0、remaining なし）
+- 分類: 解消済み 0 / 対応する 0 / 対応しない 0
+- 結論: 2（修正不要）。自己レビューは結論 1 だけで行うので未実施
+- 検証: 同じ HEAD の clean な worktree で記録した `pytest tools/agent_runner/tests -q`（314 passed）・`compileall`・`check-layout.sh` がすべて終了コード 0。base `9800cf36` は head の祖先なので merge したツリーでの検証は不要
+- 却下されたレビュアーの原因（モデル ID の保存名の扱い）はこの PR の範囲外で、レビュアーの構成の問題として最終報告に書く
