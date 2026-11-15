@@ -34,7 +34,7 @@ Claude Code ランタイム
 
 ``role.skills`` は標準入力の指示へ追加する。
 ``agent.skill_sources`` の下に対象の ``SKILL.md`` があれば、実行 worktree を基準に解決した絶対パスを明示し、CLI の通常の探索より優先するよう指示する。
-JSON の役割では最終回答を JSON object にする指示も追加する。
+JSON の役割では、共有の ``request_prompt`` が依頼文の直後に ``JSON_REQUEST``（``"Answer with a single JSON object as your final message."``）を足し、その後に skill の指示が続く。
 プロンプト本文を argv に含めない。
 
 .. _agent_runner_claude_code_collection:
@@ -43,8 +43,14 @@ JSON の役割では最終回答を JSON object にする指示も追加する�
 ====================
 
 最後の ``result`` イベントを最終回答に使う。
-``subtype = "success"`` かつ ``is_error`` が偽であり、役割に対応した空でない JSON object または text が必要である。
-JSON は object 全体か JSON code fence 内の object を受け付ける。
+``subtype = "success"`` かつ ``is_error`` が偽であり、役割に対応した JSON object または空でない text が必要である。
+JSON では回答全体の object に加え、説明文に続く裸の object や code fence 内の object も受け付け、複数ある場合は最後の object を採用する。
+結果として扱う fence は、info の最初の語が大文字小文字を無視して ``json`` と完全一致する場合と言語指定のない場合である。
+結果 fence の内側の inline code と入れ子の非 JSON fence は例示として扱わず、壊れた object 候補は後続結果があっても拒否する。
+JSON fence や言語指定のない fence、裸の壊れた object 候補があれば応答を拒否し、先行結果や壊れた候補の内部へ巻き戻さない。
+閉じた inline code span と、明示的に JSON 以外の言語を指定した閉じた fence は例示である。その中の壊れた object 候補は、最後のそのような例の終端より後ろに有効な結果がある場合だけ不問にする。例内の別の正常 object では満たさず、後続結果が無ければ応答を拒否する。
+壊れた候補を含まない例示内の有効な object は従来どおり候補になる。
+未閉鎖の fence 内でも有効な JSON object は受け付ける。
 完了イベントの欠落、不正な応答、明示的なエラー、成功イベント後に続く未完了の応答は ``response_failed`` とする。
 JSON でない通知行は無視する。
 JSON イベントらしい行の解析に失敗した場合は位置を保持し、最後の完了イベントより後にあれば ``response_failed`` とする。

@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import cast
 
 from tools.agent_runner.adapters import AdapterContext, AdapterOutcome, Capabilities, LaunchSpec
+from tools.agent_runner.adapters.json_result import json_object, request_prompt
 from tools.agent_runner.adapters.skills import prompt_lines
 from tools.agent_runner.models import Identity, Payload, Receipt, ReceiptStatus, Request, ResultShape
 
@@ -28,7 +29,6 @@ _APPROVAL = re.compile(
     re.IGNORECASE,
 )
 _INTERRUPT = re.compile(r"interrupt|abort|cancel", re.IGNORECASE)
-_FENCE = re.compile(r"```(?:json|JSON)\b[^\n]*\n")
 _DEFAULT_BASH_TIMEOUT_MS = 600_000
 _BASH_TIMEOUT_MARGIN_SECONDS = 120.0
 
@@ -61,31 +61,10 @@ def _text(path: Path) -> str:
         return ""
 
 
-def _json_object(text: str) -> dict[str, object] | None:
-    try:
-        value: object = json.loads(text.strip())
-    except ValueError:
-        pass
-    else:
-        return cast(dict[str, object], value) if isinstance(value, dict) else None
-    decoder = json.JSONDecoder()
-    for opening in _FENCE.finditer(text):
-        candidate = text[opening.end():].lstrip()
-        try:
-            value, end = decoder.raw_decode(candidate)
-        except ValueError:
-            continue
-        # JSON strings may contain backticks. Only the decoder's object end
-        # can determine where to look for the Markdown closing fence.
-        if isinstance(value, dict) and candidate[end:].lstrip().startswith("```"):
-            return cast(dict[str, object], value)
-    return None
-
-
 def _payload(text: str, shape: ResultShape) -> tuple[ReceiptStatus, Payload]:
     if shape == "text":
         return ("success", text) if text.strip() else ("response_failed", None)
-    parsed = _json_object(text)
+    parsed = json_object(text)
     return ("success", parsed) if parsed is not None else ("response_failed", None)
 
 
@@ -234,10 +213,8 @@ class ClaudeCode:
         if agent.effort is not None:
             argv.extend(("--effort", agent.effort))
         argv.extend(("--dangerously-skip-permissions", *agent.args))
-        lines = [context.request.prompt]
+        lines = [request_prompt(context.request.prompt, context.role.result_shape)]
         lines.extend(prompt_lines(context.work_dir, agent.skill_sources, context.role.skills))
-        if context.role.result_shape == "json":
-            lines.append("Return your final answer as a JSON object.")
         # Keep this noninteractive child's work in the foreground so it finishes
         # before the result. Bash keeps its 10-minute default; a long verification
         # may request up to the role's remaining time minus a reserve for the

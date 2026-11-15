@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import cast
 
 from tools.agent_runner.adapters import AdapterContext, AdapterOutcome, Capabilities, LaunchSpec
-from tools.agent_runner.adapters.json_result import json_object
+from tools.agent_runner.adapters.json_result import json_object, request_prompt
 from tools.agent_runner.adapters.skills import prompt_lines, verified_versions
 from tools.agent_runner.models import Identity, Payload, Receipt, ReceiptStatus, Request, ResultShape
 
@@ -235,10 +235,8 @@ class Pi:
             path = path if path.is_absolute() else context.work_dir / path
             argv.extend(("--skill", str(path)))
         argv.extend(agent.args)
-        lines = [context.request.prompt]
+        lines = [request_prompt(context.request.prompt, context.role.result_shape)]
         lines.extend(prompt_lines(context.work_dir, agent.skill_sources, context.role.skills))
-        if context.role.result_shape == "json":
-            lines.append("Return your final answer as a JSON object.")
         return LaunchSpec(argv=tuple(argv), stdin="\n\n".join(lines).encode("utf-8"))
 
     def collect(self, context: AdapterContext, stdout_path: Path, stderr_path: Path) -> AdapterOutcome:

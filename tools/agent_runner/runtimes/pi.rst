@@ -33,7 +33,7 @@ Pi 1.3.0 の ``--no-approve`` はプロジェクトローカルの設定ファ�
 ``agent.skill_sources`` は ``--skill`` へ渡し、相対パスは実行 worktree を基準に絶対パスにする。
 ``role.skills`` は標準入力の指示へ追加する。
 設定された source の下に対象の ``SKILL.md`` があれば、実行 worktree を基準に解決した絶対パスを明示し、native discovery より優先するよう指示する。
-JSON の役割では最終回答を JSON object にする指示も加える。
+JSON の役割では、共有の ``request_prompt`` が依頼文の直後に ``JSON_REQUEST``（``"Answer with a single JSON object as your final message."``）を足し、その後に skill の指示が続く。
 
 .. _agent_runner_pi_collection:
 
