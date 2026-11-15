@@ -63,7 +63,7 @@ runner は JSON の役割の payload を空でない dict に限る（`tools/age
 - **D1 抽出の選択ポリシー**: claude_code・codex・cursor とも `json_object`（最後の有効な object）。/ 別案: codex・cursor は上流どおり `first_json_object`。/ 理由: 訂正形で古い object を成功にする危険を除くため。Issue の「決定済みの事項」2026-11-15 の利用者の決定。上流が先頭選択を維持する意図は #457 で確認する。/ 利用者の決定。
 - **D2 例示境界**: #425 の境界（PR #461 の `json_object` の docstring と #416 へのコメント）をそのまま使い、adapter 側で追加の判定をしない。/ 別案: なし。/ 理由: Issue の決定済み事項。/ 利用者の決定。
 - **D3 空 object `{}`**: codex の「空 object を拒否する」独自規則は残さず、`json_object` の結果（空 object も返る）に従う。最終的には runner が空の dict を `invalid_result` にするので、成功にはならない。/ 別案: codex・cursor で空 object を飛ばす（上流の `first_json_object` と同じ）。/ 理由: 最後の object が空なら、それより前の object へ戻るのは「先行結果への巻き戻り」で、この Issue が防ぐ形そのものである。pi・devin と同じ扱いになる。/ 委任（エージェントの判断）。
-- **D4 codex の pending error の解除判定**: `turn.completed` で、直前の message が JSON の役割で有効かを見る判定も `json_object` に替える。/ 別案: 解除判定だけ旧規則を残す。/ 理由: 解除判定と最終 payload の判定が別の規則だと、「解除されたが payload は失敗」または逆が起きる。同じ関数にすれば、成功にできる応答だけがエラーを解除する。/ 委任。
+- **D4 codex の pending error の解除判定**: `turn.completed` で、直前の message が JSON の役割で有効かを見る判定も `json_object` に替え、さらに抽出した dict が空でないことを要求する（設計レビュー D1 の採用）。/ 別案: 解除判定だけ旧規則を残す、または `json_object` の結果が None でないことだけを見る。/ 理由: 抽出規則は最終 payload と同じ関数にして重複を避ける。一方、空 object は runner が `invalid_result` にする成功にできない応答なので、それでエラーを解除すると、認証エラー → `{}` → `turn.completed` が `awaiting_authentication` から `invalid_result` に変わり、診断を変えない条件に反する。空でない有効な object だけがエラーを解除する。/ 委任（設計レビューの指摘で変更）。
 - **D5 `first_json_object` の扱い**: ヘルパーとテストを残し、docstring に「現行の adapter からは呼ばない。上流との対応と #457 の確認結果のために残す」と書く。/ 別案: 削除する。/ 理由: #425 で例示境界を合わせたばかりで、#457 の結果次第で再び使う可能性がある。削除は #457 の結論を先取りする。/ Issue が委任。
 - **D6 JSON 指示の文言と位置**: 4 adapter とも `request_prompt` を依頼文の最初の部分に使い、その後に `prompt_lines`（skill の指示）を続ける。claude_code の Bash の timeout の案内は今の位置（最後）のまま。pi・claude_code の文は `"Return your final answer as a JSON object."` から `JSON_REQUEST`（`"Answer with a single JSON object as your final message."`）に変わり、skill の指示より前に移る。codex・cursor は文言も位置も変わらない（呼び出し方だけが変わる）。/ 別案: pi・claude_code で今の位置（skill の指示の後）に `JSON_REQUEST` を足す。/ 理由: `request_prompt` は「依頼文 + JSON 指示」を返す関数で、後ろに置くと関数を使わずに文字列を足すことになり、接続の意味が無くなる。上流・codex・cursor と同じ並びになる。/ Issue が委任。
 - **D7 shape の取り方**: 各 adapter が今使っている値（pi・claude_code は `context.role.result_shape`、codex・cursor は `context.request.result_shape`）を変えない。runner は `request.result_shape` を `role.result_shape` から作るので同じ値である。/ 理由: 範囲外の変更を増やさない。/ 委任。
@@ -83,7 +83,7 @@ runner は JSON の役割の payload を空でない dict に限る（`tools/age
 ### 抽出
 
 - `tools/agent_runner/adapters/claude_code.py`: `_FENCE` と `_json_object` を消し、`_payload` で `json_object` を使う
-- `tools/agent_runner/adapters/codex.py`: `_json_object` を消し、`turn.completed` の解除判定と最終 payload の両方で `json_object` を使う
+- `tools/agent_runner/adapters/codex.py`: `_json_object` を消し、`turn.completed` の解除判定と最終 payload の両方で `json_object` を使う。解除判定は、抽出した dict が空でないときだけ pending error を消す（D4）
 - `tools/agent_runner/adapters/cursor.py`: `_json_object` を消し、最終 payload で `json_object` を使う
 - 完了イベントの選び方（claude_code の `result`、codex の最後の completed `agent_message` と `turn.completed`、cursor の `result`）、malformed event の扱い、認証・承認の診断は変えない
 
@@ -114,6 +114,7 @@ runner は JSON の役割の payload を空でない dict に限る（`tools/age
   - claude_code・codex・cursor の collect が、文章 → 裸の JSON・訂正・JSONC の例 + 最終結果で `success` になり、payload が最後の有効な object と一致する
   - 同じ 3 adapter で、途切れ（先行する有効な object あり）・文章だけが `response_failed` になり、先行する object を返さない
   - pi・claude_code・codex・cursor の JSON の役割の stdin が `request_prompt(prompt, "json")` で始まり、`JSON_REQUEST` を 1 回だけ含み、旧文 `"Return your final answer as a JSON object."` を含まない。text の役割の stdin は `JSON_REQUEST` を含まない
+  - codex で、認証エラーの後の空 object `{}` の完了 message はエラーを解除せず、`awaiting_authentication` のまま
   - devin の `prepare` の stdin と argv が base と同じ
   - 既存の adapter テスト（完了条件・診断・隔離）がすべて通る
 - 防御範囲（対象）: 上の形で完了結果を採用し、壊れた回答・設定例の object・古い object を成功にしないこと
@@ -126,6 +127,7 @@ AGENTS.md の「テストの採用基準」に従う。
 - 追加（S、`tools/agent_runner/tests/adapters/test_parser_regressions.py`）:
   - claude_code・codex・cursor を parametrize した 1 つのテストで、訂正形の collect が最後の object（`NEW`）を payload にする。古い object を成功にする誤り（気付けない損害）を各 adapter の接続ごとに守る。3 つの adapter はそれぞれ別の呼び出し箇所なので D ではない。成功する形なので陽性対照も兼ねる
   - 同じ 3 adapter で、先行する有効な object の後に途切れた候補がある応答が `response_failed` になる。adapter 側の巻き戻りを守る。拒否の例には上の成功例が対になる
+  - codex で、認証エラー → `{}` の message → `turn.completed` が `awaiting_authentication` のまま（D4）。空 object でエラーを解除すると、診断が `invalid_result` に変わって認証待ちに気付けない（S）。既存の `test_codex_fresh_completed_message_recovers_error`（空でない object での回復）が陽性対照になる
 - 追加しない: 文章 → 裸の JSON・JSONC の例・壊れた候補の分類（`test_json_result.py` が `json_object` で守っており、adapter ごとに同じ規則を網羅すると D）。依頼文の文言（壊れても JSON でない応答が `response_failed` として見える L、文言の固定は F）。これらは一時的なスクリプトで確かめ、PR 本文に結果を書く
 - 変更: `test_invalid_fence_cannot_salvage_inner_json` の未閉鎖 fence の場合を削除する（D9）
 - `first_json_object` のテストは D5 のとおり残す
@@ -140,3 +142,15 @@ AGENTS.md の「テストの採用基準」に従う。
 
 - テスト関数名と fixture の細部
 - runtime 文書の文の細部（意味は上の「文書」のとおり）
+
+## レビュー記録
+
+### 設計レビュー 1 回目
+
+- helper: `review_design.py`（外部担当）。`requested_agent` / `actual_agent`: `pi_openai-codex_gpt6-sol_xhigh`（`--design-review` の明示。`fallback` は空のまま、使用なし）
+- identity: model `gpt-6.1-sol`、provider `openai-codex`、effort `xhigh`
+- `review_id`: `74d4b0797af145b190d3f20c9dc09e69`、reviewed の Spec SHA-256: `2edfeecbd8f6b93ee0c0dba581df19a7278a1ed4ac3de3b6cec51675bc93511e`、対象 revision `1e16a99a2a501f23b47ba6b4e5697267b8fc7b68`
+- `elapsed_seconds`: 178.2、`outside_changes`: なし、`unprotected_changes`: 他の作業の `/tmp/pr-review-376-*`・`/tmp/review-fix-planning.*` の worktree 6 件（この作業の対象外。記録のみ）
+- 判定: `concerns`（1 件）
+- 採否: D1（blocking、codex のエラー解除で空 object を許すと認証・承認の診断が消える）を採用。D4・設計の codex・テスト・受け入れ基準に反映した
+- レビューの記録は commit しない: `PARENT_ROOT/tmp/agents/issue-416.q59dbn2x/2026-11-15-issue-416-json-result-adapters-design.design-review/review-1`
