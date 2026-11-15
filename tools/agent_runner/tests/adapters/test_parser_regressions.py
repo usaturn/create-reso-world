@@ -110,10 +110,32 @@ def test_fenced_json_with_nested_code_backticks_is_data(tmp_path: Path, runtime:
 
 
 @pytest.mark.parametrize("runtime", ("claude-code",))
-@pytest.mark.parametrize("text", ['```json\n{"ok":true}', '```json\n{"outer":{"ok":true},\n```'])
+@pytest.mark.parametrize("text", ['```json\n{"outer":{"ok":true},\n```'])
 def test_invalid_fence_cannot_salvage_inner_json(tmp_path: Path, runtime: str, text: str) -> None:
     outcome = _collect(_context(tmp_path, runtime), _jsonl(_events(runtime, text)))
     assert outcome.receipt.status == "response_failed" and outcome.receipt.payload is None
+
+
+# Selecting an earlier object would report the stale result as a successful
+# answer without any error; each adapter's own extraction call site is guarded.
+@pytest.mark.parametrize("runtime", ("claude-code", "codex", "cursor"))
+def test_correction_result_is_last_valid_object(tmp_path: Path, runtime: str) -> None:
+    text = ('```json\n{"status": "OLD"}\n```\nI corrected the result.\n'
+            '```json\n{"status": "NEW"}\n```')
+    outcome = _collect(_context(tmp_path, runtime), _jsonl(_events(runtime, text)))
+    _success(outcome, {"status": "NEW"})
+
+
+# A truncated trailing candidate must reject the response; falling back to the
+# earlier complete object would silently report a stale result as the answer.
+@pytest.mark.parametrize("runtime", ("claude-code", "codex", "cursor"))
+def test_truncated_candidate_rejects_response(tmp_path: Path, runtime: str) -> None:
+    text = '{"status": "OLD"}\nDone.\n{"status": "DONE",'
+    outcome = _collect(_context(tmp_path, runtime), _jsonl(_events(runtime, text)))
+    if runtime == "claude-code":
+        assert outcome.receipt.status == "response_failed" and outcome.receipt.payload is None
+    else:
+        assert outcome.state == "response_failed" and outcome.receipt is None
 
 
 @pytest.mark.parametrize(
@@ -174,6 +196,15 @@ def test_codex_fresh_completed_message_recovers_error(tmp_path: Path, diagnostic
     events.extend([_message('{"fresh":true}'), {"type": "turn.completed"}])
     outcome = _collect(_context(tmp_path, "codex"), _jsonl(events))
     _success(outcome, {"fresh": True})
+
+
+def test_codex_empty_object_does_not_clear_authentication_error(tmp_path: Path) -> None:
+    # Clearing the error on an empty object would silently change the
+    # awaiting_authentication diagnosis into invalid_result.
+    events = [{"type": "error", "message": "authentication required"},
+              _message("{}"), {"type": "turn.completed"}]
+    outcome = _collect(_context(tmp_path, "codex"), _jsonl(events))
+    assert outcome.state == "awaiting_authentication" and outcome.receipt is None
 
 
 @pytest.mark.parametrize("tail", [

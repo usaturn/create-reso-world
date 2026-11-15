@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import cast
 
 from tools.agent_runner.adapters import AdapterContext, AdapterOutcome, Capabilities, LaunchSpec
+from tools.agent_runner.adapters.json_result import json_object, request_prompt
 from tools.agent_runner.adapters.skills import prompt_lines, verified_versions
 from tools.agent_runner.models import Identity, Receipt, State
 
@@ -25,9 +26,7 @@ _SKILL_FILE = re.compile(r"(/[^\s\"'\\]+/[^\s\"'\\]+/SKILL\.md)")
 
 
 def _prompt(context: AdapterContext) -> str:
-    parts = [context.request.prompt]
-    if context.request.result_shape == "json":
-        parts.append("Answer with a single JSON object as your final message.")
+    parts = [request_prompt(context.request.prompt, context.request.result_shape)]
     parts.extend(prompt_lines(context.work_dir, context.agent.skill_sources, context.role.skills, prefix="$"))
     return "\n\n".join(parts)
 
@@ -47,31 +46,6 @@ def _read(path: Path) -> str:
         return path.read_text(encoding="utf-8", errors="replace")
     except OSError:
         return ""
-
-
-def _json_object(text: str) -> dict[str, object] | None:
-    stripped = text.strip()
-    try:
-        whole: object = json.loads(stripped)
-    except json.JSONDecodeError:
-        # Bare JSON must be complete; do not salvage a nested object from a
-        # truncated outer object or array. Prose/fences may wrap one object.
-        if stripped.startswith(("{", "[")):
-            return None
-    else:
-        return cast(dict[str, object], whole) if isinstance(whole, dict) and whole else None
-    decoder = json.JSONDecoder()
-    for index, character in enumerate(text):
-        if character not in "{[":
-            continue
-        try:
-            value, end = decoder.raw_decode(text[index:])
-        except json.JSONDecodeError:
-            return None
-        if text[index + end:].lstrip().startswith(("{", "[")):
-            return None
-        return cast(dict[str, object], value) if isinstance(value, dict) and value else None
-    return None
 
 
 def _read_evidence(event: dict[str, object]) -> list[tuple[str, str]]:
@@ -256,7 +230,7 @@ class _CodexAdapter:
             elif kind == "turn.completed":
                 completed = True
                 if text is not None and text.strip() and (
-                    context.request.result_shape != "json" or _json_object(text) is not None
+                    context.request.result_shape != "json" or bool(json_object(text))
                 ):
                     pending_errors.clear()
             elif kind == "item.completed":
@@ -280,7 +254,7 @@ class _CodexAdapter:
         if text is None:
             return failed("response_failed")
         if context.request.result_shape == "json":
-            payload = _json_object(text)
+            payload = json_object(text)
             if payload is None:
                 return failed("response_failed")
         else:

@@ -2,15 +2,19 @@
 
 ``request_prompt`` appends the instruction a request asks for when the role's
 result shape is JSON; ``json_object`` and ``first_json_object`` extract the
-JSON object a response offers as its result. Both reject a malformed object
-candidate instead of falling back to an earlier result or an object nested in
-the broken candidate. A closed inline code span or a closed code fence whose
-first info word is not exactly ``json`` (case-insensitive) is an example. A
-malformed object candidate inside an example does not reject the response only
-when the selected result lies after the end of the last example that contains
-such a candidate; an object nested in the broken candidate is not rescued and
-a valid object inside the example does not satisfy that condition. An example
-without a malformed candidate keeps a valid object as a normal candidate.
+JSON object a response offers as its result. The pi, claude_code, codex,
+cursor, and devin adapters all select their result with ``json_object``.
+``first_json_object`` is not called by the current adapters; it is kept for
+correspondence with the upstream implementation and for the #457 follow-up.
+Both extractors reject a malformed object candidate instead of falling back
+to an earlier result or an object nested in the broken candidate. A closed
+inline code span or a closed code fence whose first info word is not exactly
+``json`` (case-insensitive) is an example. A malformed object candidate
+inside an example does not reject the response only when the selected result
+lies after the end of the last example that contains such a candidate; an
+object nested in the broken candidate is not rescued and a valid object
+inside the example does not satisfy that condition. An example without a
+malformed candidate keeps a valid object as a normal candidate.
 """
 
 import json
@@ -357,6 +361,9 @@ def first_json_object(text: str) -> dict[str, object] | None:
     detection, explicit examples, and rejection follow :func:`json_object`;
     intent is not inferred, and broken array wrappers, unquoted keys, and
     single-quoted pseudo objects are outside this helper's guarantees.
+    ``first_json_object`` is not called by the current adapters; it is kept
+    for correspondence with the upstream implementation and for the #457
+    follow-up.
     """
     return _extract_object(text, first=True)
 
