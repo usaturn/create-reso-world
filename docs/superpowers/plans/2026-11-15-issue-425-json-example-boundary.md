@@ -55,24 +55,24 @@
 
 **テスト要否:** S。単に言語判定を緩めると古い/例内の object をもっともらしい成功にするため、共有 helper で防御する。陽性は拒否一辺倒の実装を防ぐ対照。通常の API/型/構文や文書文言の固定値は L/F としてテストにしない。下記以外の組合せは一時 probe と既存テストで確認し、テストを増殖させない。
 
-- [ ] **Step 1: tests を先に追加する**
+- [x] **Step 1: tests を先に追加する**
   - `test_jsonc_example_accepts_result_after_fence`: 複数行・日本語付き jsonc のコメント例 + json fence の DONE が `{"status":"DONE"}` と一致。
   - `test_malformed_example_requires_result_beyond_its_end`: OLD + json5 fence の `{"enabled": true,}` + 同じ fence 内の `{"status":"EXAMPLE"}`、fence を閉じて終了 → None。無条件無視と例内での条件解除の両方を防ぐ代表例。
   - `test_first_result_cannot_precede_malformed_example`: first helper で OLD + 壊れた jsonc fence + DONE → None。併せて OLD を置かない陽性では DONE を返す。先頭選択と最後の壊れた例の位置の関係を守る独立ガード。
   - 各ガードには防ぐ損害と S の理由をコメントする。既存 4 テストは維持。
-- [ ] **Step 2: Red を観測する**
+- [x] **Step 2: Red を観測する**
   - `uv run --locked pytest tools/agent_runner/tests/adapters/test_json_result.py -q`
   - 少なくとも jsonc の陽性と json5 の終端外ガードが期待する理由で失敗することを確認する。単純言語変更だけの対照が OLD/EXAMPLE を返すことも必要に応じ一時的に確認する。失敗内容を報告に保存。
-- [ ] **Step 3: 局所実装**
+- [x] **Step 3: 局所実装**
   - `_example_fence` の完全一致判定と、壊れた例の終端より後ろの選択候補を必要とする状態を `_extract_object` へ加える。
   - 既存の候補の消費、正常例の候補化、result fence 優先、first の array 選択を維持する。全面 scanner 書換え・新依存は入れない。
   - module/function docstring と pi/devin の「応答と失敗の判定」を、json 完全一致・壊れた例の後続必須・result fence 優先・正常例の候補化に合わせる。RST の既存構造と記法を使う。
-- [ ] **Step 4: Green と関連回帰を同期実行する**
+- [x] **Step 4: Green と関連回帰を同期実行する**
   - `uv run --locked pytest tools/agent_runner/tests/adapters/test_json_result.py -q`
   - `uv run --locked pytest tools/agent_runner/tests -q`
   - `uv run --locked pytest tests/skills .agents/skills .agents/scripts tools -q`
   - すべて終了コード 0。失敗は省略せず、原因と対象を報告する。文書の意味とコードを自己照合し、`git diff --check` を通す。
-- [ ] **Step 5: commit と報告**
+- [x] **Step 5: commit と報告**
   - 上記 4 パスだけ stage し、`fix: require a later result after malformed JSON examples` で commit。
   - Red/Green のコマンド・結果、作業時間と内訳、変更内容、残る懸念を helper の結果形式で返す。Spec/Plan や GitHub は編集しない。subagent/runner の入れ子起動をしない。
 
@@ -116,4 +116,10 @@ base が未 push で無関係な変更のみ前進した場合は issue-to-pr �
 
 ## 完了記録
 
-未実装。Task 完了・公開前に Plan のチェックと検証結果を更新する。Spec はレビューで確定した内容・版を維持する。PR は `Refs #425` とし、マージ後の同じ fake collect の再確認項目を Issue コメントへ残す。指定 loop/finalize の外でマージしない。
+Task 1 は `f93c35ca685c3cae588c9e883cf6a98090eae4bf` で取り込み済み。明示担当 `pi_opencode-go_deepseek4-flash_max` の 1 回の依頼、実測 identity `deepseek-v4.1-flash/opencode-go/max`、elapsed=1404.39 秒。Red は helper の 2 failed/5 passed と、言語判定だけを変更した対照で json5 の例内 EXAMPLE を誤採用する失敗を観測。Green は helper 7 passed、runner 308 passed、全体 1587 passed（979.66 秒）、diff check 成功。controller が取り込み後の runner 308 passed と diff check を再確認した。
+
+Task レビュー（sp-review、読み取り専用）は spec compliant / task quality approved、指摘なし。初回 dispatch は明示 scope が足りず NEEDS_CONTEXT、`Review scope: task` を明示して開始した。未検証項目として挙げた pi/devin collect の実経路は controller の `verify_examples.py` で確認し、全 40 確認成功（22 collect・18 helper、終了コード 0）。jsonc/json5 の複数行・非 ASCII 例 + fenced/bare DONE は両方 success、OLD と壊れた例のみは両方 response_failed/None。result fence 優先・複数例・正常例の限界・array/empty/first/未閉鎖も Spec と一致した。証拠: SESSION/integration-probe.log と probe-results-jttp6oty.json。
+
+設計/Spec の cleanup および実装依頼 cleanup は停止確認済みで retained 空。依頼/結果・採否・ログの保存先は SESSION、実装依頼 JSON は `/workspaces/reso-world/tmp/agents/issue-425-implement.rwu0c7in/` に残す。Spec は再レビューで確定した内容・版を維持する。
+
+Task 後の base 再照合で main 前進を検出した。未 push の inspect/advance/reverify で処理し、その旧/新 SHA と必須コマンドの結果を PR と SESSION に記録する。最終必須検証・Gitleaks・PR・ループはこの時点では未実施。PR は `Refs #425` とし、マージ後の同じ fake collect の再確認項目を Issue コメントへ残す。指定 loop/finalize の外でマージしない。
