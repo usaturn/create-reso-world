@@ -48,8 +48,11 @@ JSON の役割では最終回答を JSON object にする指示も加える。
 正常な ``stopReason`` と、役割に対応した JSON object または空でない text を要求する。
 Pi の JSON 出力は失敗でも終了コード 0 になる場合があるため、イベントの欠落、異常な終了理由、不正な応答は ``response_failed`` とする。
 JSON では回答全体の object に加え、説明文に続く裸の object や code fence 内の object も受け付け、複数ある場合は最後の object を採用する。
+結果として扱う fence は、info の最初の語が大文字小文字を無視して ``json`` と完全一致する場合と言語指定のない場合である。
+結果 fence の内側の inline code と入れ子の非 JSON fence は例示として扱わず、壊れた object 候補は後続結果があっても拒否する。
 JSON fence や言語指定のない fence、裸の壊れた object 候補があれば応答を拒否し、先行結果や壊れた候補の内部へ巻き戻さない。
-閉じた inline code span と、明示的に JSON 以外の言語を指定した閉じた fence 内の壊れた候補は例示として拒否理由にしない。例示内の有効な object は候補になる。
+閉じた inline code span と、明示的に JSON 以外の言語を指定した閉じた fence は例示である。その中の壊れた object 候補は、最後のそのような例の終端より後ろに有効な結果がある場合だけ不問にする。例内の別の正常 object では満たさず、後続結果が無ければ応答を拒否する。
+壊れた候補を含まない例示内の有効な object は従来どおり候補になる。
 未閉鎖の fence 内でも有効な JSON object は受け付ける。
 非ゼロ終了は runner が失敗として扱う。
 

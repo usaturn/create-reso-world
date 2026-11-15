@@ -4,11 +4,13 @@
 result shape is JSON; ``json_object`` and ``first_json_object`` extract the
 JSON object a response offers as its result. Both reject a malformed object
 candidate instead of falling back to an earlier result or an object nested in
-the broken candidate. A closed inline code span or a closed code fence with an
-explicit non-JSON language is an example: a malformed object candidate inside
-it does not reject the response and an object nested in that broken candidate
-is not rescued, while a valid object inside the example remains a normal
-candidate.
+the broken candidate. A closed inline code span or a closed code fence whose
+first info word is not exactly ``json`` (case-insensitive) is an example. A
+malformed object candidate inside an example does not reject the response only
+when the selected result lies after the end of the last example that contains
+such a candidate; an object nested in the broken candidate is not rescued and
+a valid object inside the example does not satisfy that condition. An example
+without a malformed candidate keeps a valid object as a normal candidate.
 """
 
 import json
@@ -112,11 +114,11 @@ def _closed_fence_end(text: str, fence: _Fence) -> _FenceClose | None:
 
 
 def _example_fence(fence: _Fence) -> bool:
-    """Return whether *fence* explicitly names a non-JSON language."""
+    """Return whether *fence* names a language other than ``json``."""
     if not fence.info:
         return False
     language = fence.info.split(maxsplit=1)[0]
-    return not language.lower().startswith("json")
+    return language.lower() != "json"
 
 
 def _blank_line_after(text: str, newline: int) -> bool:
@@ -198,29 +200,35 @@ def _object_extent(text: str, index: int, limit: int) -> int:
 def _extract_object(text: str, *, first: bool) -> dict[str, object] | None:
     """Scan *text*, rejecting any malformed JSON object candidate.
 
-    A closed inline code span or a closed code fence with an explicit non-JSON
-    language is an example: a malformed object candidate inside it does not
-    reject the response, and an object nested in that broken candidate is not
-    rescued. A valid object inside the example is still a candidate, so the
-    usual first/last selection is unchanged. JSON fences and fences without a
+    A closed inline code span or a closed code fence whose first info word is
+    not exactly ``json`` (case-insensitive) is an example. A malformed object
+    candidate inside an example is not rejected only when the selected result
+    lies after the end of the last example containing such a candidate. A valid
+    object inside the example does not satisfy that condition, and an object
+    nested in the broken candidate is not rescued. An example without a
+    malformed candidate keeps a valid object as a normal candidate, so the
+    usual first/last selection applies. JSON fences and fences without a
     language are scanned as results, and a malformed candidate inside one still
     rejects the response. Scan text is consumed one decoded JSON container at a
     time, so a delimiter inside a decoded string does not start an example.
 
     A successful object decode is consumed whole, including an empty object; a
     successful array is consumed whole too, except that the first policy reads
-    its first non-empty object because that was the codex/cursor behavior. A
+    its first non-empty object because that was the codex/cursor behavior. The
+    first policy uses the array's start as the selected result position. A
     failed array is skipped to the decoder's error position without rejecting
     the response. A failed object candidate outside an example rejects the
     response even when an earlier or nested object decoded successfully.
     """
     decoder = json.JSONDecoder()
     candidate: dict[str, object] | None = None
+    candidate_position: int | None = None
     index = 0
     result_fence_end: int | None = None
     result_fence_resume: int | None = None
     example_end: int | None = None
     example_resume: int | None = None
+    broken_example_after: int | None = None
     while index < len(text):
         if example_end is not None:
             if index >= example_end:
@@ -263,14 +271,19 @@ def _extract_object(text: str, *, first: bool) -> dict[str, object] | None:
                 value, end = decoder.raw_decode(text, index)
             except json.JSONDecodeError:
                 if example_end is not None:
+                    broken_example_after = (
+                        example_resume if example_resume is not None else example_end
+                    )
                     index = _object_extent(text, index, example_end)
                     continue
                 return None
             mapping = cast(dict[str, object], value)
             if not first:
                 candidate = mapping
+                candidate_position = index
             elif candidate is None and mapping:
                 candidate = mapping
+                candidate_position = index
             index = end
             continue
         if character != "[":
@@ -282,8 +295,15 @@ def _extract_object(text: str, *, first: bool) -> dict[str, object] | None:
             index = max(index + 1, error.pos)
             continue
         if first and candidate is None:
-            candidate = _first_object(value)
+            found = _first_object(value)
+            if found is not None:
+                candidate = found
+                candidate_position = index
         index = end
+    if broken_example_after is not None and (
+        candidate_position is None or candidate_position < broken_example_after
+    ):
+        return None
     return candidate
 
 
@@ -302,15 +322,17 @@ def json_object(text: str) -> dict[str, object] | None:
     not candidates. The last successfully decoded object wins, including an
     empty one.
 
-    A closed inline code span or a closed code fence with an explicit non-JSON
-    language is an example. A malformed object candidate inside an example does
-    not reject a result outside it, and an object nested in that broken
-    candidate is not rescued; a valid object inside the example is still a
-    candidate, so the first/last selection is unchanged. JSON fences, fences
-    without a language, and bare object candidates keep the rejection behavior:
-    intent is not inferred, so a malformed correction rejects even after a
-    complete earlier result. A broken array wrapper, an unquoted key, or a
-    single-quoted pseudo object gets no new meaning here.
+    A closed inline code span or a closed code fence whose first info word is
+    not exactly ``json`` (case-insensitive) is an example. A malformed object
+    candidate inside an example is excused only when the last selected object
+    lies after the end of the last example containing such a candidate; a
+    valid object inside the example does not satisfy that condition, and an
+    object nested in the broken candidate is not rescued. An example without a
+    malformed candidate keeps a valid object as a normal candidate. JSON
+    fences, fences without a language, and bare object candidates keep the
+    rejection behavior: intent is not inferred, so a malformed correction
+    rejects even after a complete earlier result. A broken array wrapper, an
+    unquoted key, or a single-quoted pseudo object gets no new meaning here.
     """
     try:
         whole: object = json.loads(text)
@@ -328,10 +350,13 @@ def first_json_object(text: str) -> dict[str, object] | None:
     first non-empty object inside a valid array are accepted, while empty
     objects are skipped. The response is still scanned to its end, so a
     malformed object candidate after the selected result rejects the whole
-    response. Candidate detection, explicit examples, and rejection follow
-    :func:`json_object`; intent is not inferred, and broken array wrappers,
-    unquoted keys, and single-quoted pseudo objects are outside this helper's
-    guarantees.
+    response. When the selection follows a malformed example, the selected
+    candidate itself must lie after the end of the last such example; an object
+    selected inside an array uses the array's start position. The helper does
+    not switch to another candidate when the first one is too early. Candidate
+    detection, explicit examples, and rejection follow :func:`json_object`;
+    intent is not inferred, and broken array wrappers, unquoted keys, and
+    single-quoted pseudo objects are outside this helper's guarantees.
     """
     return _extract_object(text, first=True)
 
