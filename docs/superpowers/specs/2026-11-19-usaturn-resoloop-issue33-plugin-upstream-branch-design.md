@@ -10,7 +10,7 @@
 - 入力（2026-11-18T19:04Z に `git fetch` で取得）:
   - `SRC_SHA`: `usaturn/resoloop:feat/plugin-v2` @ `95d115aecb42e38a25d8cddeadd8d3715f4e416b`
   - `UPSTREAM_SHA`: `orange3134/resoloop:main` @ `32309ca3deb4560e6a31a8985dba87ba5485c946`
-  - fork `main`: `ff77b91d1f17c7dba861416d82f1a6c8929f2805`（上流に無いコミットは `ff77b91` の merge とその親の系列）。分岐点: `a7be2dd4a5e4df9f152c8908e51a853d3af6bb74`
+  - fork `main`: `ff77b91d1f17c7dba861416d82f1a6c8929f2805`（上流に無いコミットは merge commit `ff77b91` の 1 件）。分岐点: `a7be2dd4a5e4df9f152c8908e51a853d3af6bb74`
 - 文書 base: `usaturn/create-reso-world` `refs/heads/main` @ `e347ac69238ebc563b1e4d31331037d7899cb01f`
 - issue-to-pr スキルとの差: このスキルは base へのコード PR を成果にするが、今回の成果は利用者の指示どおり「公開した提出用ブランチ」であり、コード PR は Windows CI の検証用だけを作る（マージしない）。Issue 本文の更新は、利用者が最初の手順として明示したため、案の提示後の承認待ちを置かずに `publish_issue.py` の draft → publish で行った
 
