@@ -174,10 +174,11 @@ The guides currently have these qualifications:
 ## 実行記録
 
 - #101/#33の完了、提出head/base、compare、Windows CIと検証treeを再確認した。
-- 4機能の利用経路を2担当で読取レビューし、提出を止める重大な問題がないことを確認した。ビルド・テストの再実行はしていない。
-- 本文の旧「投稿直前に再度許可を求める」条件は、上記の利用者指示で置き換え、Issue #105に記録した。
-- この文書とPlanを文書専用 PR https://github.com/usaturn/create-reso-world/pull/472 で公開した。初回公開commitは 7105f701e60438183558a4b7be71424f1d816438。リモートの2文書を読み戻し、本文の一致を確認した。
-- 投稿直前にfork head・上流main・同目的/同headの既存PRを再確認した。refは上記と一致し、重複PRは無かった。
-- GitHub連携で repository=orange3134/resoloop、base=main、head=usaturn:feat/plugin-system、draft=false により作成を試みたが、APIが 403: Resource not accessible by integration を返した。失敗後の検索でも同headのPRは見つからなかった。上流PRは未作成である。
-- ブラウザー経由も確認したがGitHubは未ログインで、ログインフォームの対象フィールド取得がタイムアウトした。手動ログインの引継ぎが必要である。認証後にrefと重複を再確認して、この文書のタイトル・本文で直接投稿する。
-- 投稿の許可は既にある。今回の停止理由はアクセス権・認証であり、追加の文面確認や投稿許可を要求しない。上流PR URLと作成後の状態は、実際の作成後にこの文書とIssue #105へ追記する。#105はopenを維持し、#102を開始しない。
+- 4機能の利用経路を2担当で読取レビューし、提出を止める重大な問題がないことを確認した。ビルド・テストを今回ローカルで再実行したわけではない。
+- 本文の旧「投稿直前に再度許可を求める」条件は、利用者の明示指示で置き換え、Issue #105に記録した。
+- このSpecとPlanを文書専用 PR https://github.com/usaturn/create-reso-world/pull/472 で公開した。初回公開commitは 7105f701e60438183558a4b7be71424f1d816438。リモートの2文書を読み戻し、内容の一致を確認した。
+- 初回のGitHub連携からの作成は 403: Resource not accessible by integration で失敗し、その直後の検索でも同headのPRは無かった。利用者による仮想マシンのブラウザーでのログイン後、usaturnとして認証済みであることを確認して投稿を再開した。追加の文面確認・投稿許可は要求しなかった。
+- 投稿直前にfork head・上流main・既存PRを再取得した。head/baseは上記と一致し、同head・同目的のPRは無かった。
+- **2026-11-19 05:00 JST、上流PR https://github.com/orange3134/resoloop/pull/20 をブラウザーから作成した。** open、draft=false、merged=false。PR本文は上の英日準備稿と一致し、base/head・38コミット・53ファイル（+7,949/-33）もGitHub APIで照合した。maintainer_can_modify=falseで作成した。
+- 上流CI https://github.com/orange3134/resoloop/actions/runs/44386456609 がpull_requestイベントで起動した。05:02 JSTの観測ではin_progress。Windows jobはRestore・Build成功、Test実行中、Pack・installed-tool smoke test等はpending。既存fork CIの成功記録と今回の上流CIを区別し、この観測時点で上流CIを成功扱いにしない。
+- 認証blockerは解消し、提出作業は完了した。Issue #105全体は作者のレビュー・実際の上流マージ確認が残るためopenを維持する。#102は開始していない。

@@ -66,9 +66,9 @@
 **テスト:** GitHub応答と再取得による照合。新規テスト不要。
 
 - [x] 投稿直前のfork head、上流main、同head/同目的の既存PRを再確認する。
-- [ ] repository=orange3134/resoloop、base=main、head=usaturn:feat/plugin-system、draft=falseで作成する。利用者への追加の文面確認・実行許可要求は行わない。
-- [ ] PRを再取得し、URL・repo/base/head・draft・state・本文・差分を照合する。
-- [ ] PRのCI状態を取得し、進行中と成功を区別して記録する。
+- [x] repository=orange3134/resoloop、base=main、head=usaturn:feat/plugin-system、draft=falseで作成する。利用者への追加の文面確認・実行許可要求は行わない。
+- [x] PRを再取得し、URL・repo/base/head・draft・state・本文・差分を照合する。
+- [x] PRのCI状態を取得し、進行中と成功を区別して記録する。
 
 ## Task 4: 作成結果を記録する
 
@@ -77,10 +77,10 @@
 **Produces:** 投稿済みの状態と残作業が再開可能な記録。  
 **テスト:** GitHubの本文を読み戻す。新規テスト不要。
 
-- [ ] 上流PR URL・head/base・検証根拠・文書PRをSpecと#105に記録する。
-- [ ] 本Planの投稿完了までの実行結果を更新する。
+- [x] 上流PR URL・head/base・検証根拠・文書PRをSpecと#105に記録する。
+- [x] 本Planの投稿完了までの実行結果を更新する。
 - [x] #105はopenのまま、上流レビューとマージ確認が残ることを明記する。
-- [ ] 利用者へ作成したPRのURLと現状を報告する。
+- [x] 利用者へ作成したPRのURLと現状を報告する。
 
 ## 実行予算
 
@@ -97,8 +97,8 @@
 ## 実行記録（2026-11-19 JST）
 
 - Task 1・2完了。文書専用PR: https://github.com/usaturn/create-reso-world/pull/472 。初回公開commit 7105f701e60438183558a4b7be71424f1d816438 の2文書を読み戻し、内容一致を確認した。
-- Task 3の投稿前照合完了。head/baseはSpecの値と一致し、重複PRなし。
-- 上流PRの作成操作はGitHub APIの 403: Resource not accessible by integration で失敗した。失敗後の検索でも同headのPRは無かった。作成のチェックは未完了のままにする。
-- ブラウザーのGitHubは未ログインで、ログインフォームの対象フィールド取得がタイムアウトした。手動ログインの引継ぎが必要。投稿の許可は既にあるため、追加の文面確認・投稿許可は不要。
-- 再開時は現在のhead/baseと既存PRを確認し、Specのタイトル・本文で投稿する。作成後にPRのURL・状態・CIを読み戻してTask 3・4を完了する。
-- Issue #105はopen。上流PRの投稿と作者によるレビュー・マージは未完了で、#102を開始しない。
+- 初回の上流PR作成はGitHub連携の 403: Resource not accessible by integration で失敗し、その後の再検索で同headのPRが無いことを確認した。利用者が仮想マシンのブラウザーでログイン後、usaturnとして認証済みであることを確認し、作業を再開した。
+- Task 3完了。投稿直前にhead/baseの一致と重複PRなしを再確認し、05:00 JSTに https://github.com/orange3134/resoloop/pull/20 を作成した。open、draft=false、merged=false。GitHub APIでURL・repo/base/head・英日本文の一致と差分（38コミット・53ファイル、+7,949/-33）を確認した。maintainer_can_modify=false。
+- 上流CI https://github.com/orange3134/resoloop/actions/runs/44386456609 を確認した。05:02 JSTではin_progress。Windows jobのRestore・Buildはsuccess、Testはin_progress、Pack・installed-tool smoke test等はpending。実行中を成功扱いにしていない。
+- Task 4は提出結果・文書PR・検証根拠・CI観測時の状態をSpecとIssue #105に記録する範囲で完了。利用者へ上流PRのURLを報告した。
+- このPlanの提出作業は完了。Issue #105全体はopenで、上流CIの完了・作者のレビュー対応と実際のマージ確認が残る。#102は開始しない。上流PRを重複作成しない。
