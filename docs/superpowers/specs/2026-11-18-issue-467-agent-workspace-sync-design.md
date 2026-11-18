@@ -98,7 +98,7 @@ create-reso-world と agent-workspace は同じ agent 名・Pi ラッパー名�
 - `pi_commandcode_deepseek4-flash_high`・`pi_opencode-go_deepseek4-flash_high` を足す（D3）
 - `claude-code_ollama_opus_max`・`claude-code_ollama_sonnet_max` → `claude-code_ollama_opus_high`・`claude-code_ollama_sonnet_high`、`effort = "high"`（D4）。前のコメントの「既存の DeepSeek V4.1 Flash 系 3 agent」の列挙を、Pi の `_high`・`_max` を含む現在の名前に直す
 - `workflows.review.assignments.inspect` の 3 人目を `pi_opencode-go_deepseek4-flash_high`（D5）
-- DeepInfra の定義の前に「DeepInfra の reasoning_effort の上限は high で、Pi は --thinking max を high に丸めるため _max は置かない」のコメントを足す
+- DeepInfra の定義の前に、`_max` を置かない理由のコメントを足す（DeepInfra の reasoning_effort の上限は high で、`pidid` の起動前の検査が runner の後ろの `--thinking max` を未対応の thinking として止める。素の Pi は high に丸める。実装中の訂正: 当初は「Pi は --thinking max を high に丸める」と書いていたが、`pidid` は起動前の検査（`pi_launcher_require_models`）を通るので、Task 4 のレビューの指摘で直した）
 - `after_run` の `--project .`、`issue.implement` の `self`、`roles`、他の agent は変えない
 
 ### Pi のラッパーと tier
@@ -138,7 +138,7 @@ create-reso-world と agent-workspace は同じ agent 名・Pi ラッパー名�
 - 「pi-superagents のランチャー別 model tier」の表のモデルと、表の下の thinking の説明（`pigs` の cheap と `pixg` の cheap・balanced を `high` にする。Spec レビュー S3 の採用）
 - 新しい節「agent-workspace の現行構成との同期（#467）」（「Devin の agent 名の変更（#341）」の後）:
   - DeepSeek V4.1 Flash の推論強度: 対象の経路と既定 `high`、Claude Code の上限と外し方、Ollama の既定、Pi で `/model` を切り替えたときは Pi の `modelThinkingLevels` が決めること（リポジトリはユーザ設定を書き換えない）
-  - `max` の agent: Pi の 2 経路の `_max` は既定の割当に入らず、`--assign` か個人設定で選ぶ。`_high` と同じ `model_key` なので同じ役割に並べると `duplicate_model`。DeepInfra に `_max` を置かない理由（`pi-models.json` の `thinkingLevelMap` が `max` を `null` にし、Pi は対応する最大の `high` に丸める）
+  - `max` の agent: Pi の 2 経路の `_max` は既定の割当に入らず、`--assign` か個人設定で選ぶ。`_high` と同じ `model_key` なので同じ役割に並べると `duplicate_model`。DeepInfra に `_max` を置かない理由（`pi-models.json` の `thinkingLevelMap` が `max` を `null` にしており、`pidid` の起動前の検査が `max` を未対応の thinking として止めるので、`_max` を作っても起動しない。素の Pi は対応する最大の `high` に丸める。上の agent-runner.toml の項と同じ実装中の訂正）
   - 既存環境の更新: Rebuild で `zshrc.txt`・`install_beforehand.bash` が置くラッパー（`pigod`・`pigs`・`piga`・`claude-ollama-exec` など）が更新される。`piccd`・`piccg` は Rebuild で更新されないので、使う場合だけ `zsh scripts/setup_pi_commandcode_goat.zsh` を再実行する。子 Pi の tier は Rebuild（`--if-absent`）では更新されないので、ランチャーの外のシェルでリポジトリのルートから `zsh scripts/setup_pi_superagents.zsh` を実行する（既存の設定は `config.json.bak.*` に退避される）。tier を手で編集している場合は、退避した設定と見比べて必要な編集を戻す。モデルカタログは `pi update --models` で更新し、`pi --list-models gpt-6.2-sol` などで確かめる
   - 個人設定の確認: (1) 旧モデル（`gpt-6.1-sol`・`gpt-6-astra`）・Ollama の旧 `_max` 名を `grep` で探すコマンド。(2) この Issue で値を変えた・足した agent（`pi_openai-codex_gpt6-sol_xhigh`・`pi_openai-codex_gpt6-astra_xhigh`・`codex_openai_gpt6-sol_default`・`pi_opencode-go_deepseek4-flash_high`・`pi_opencode-go_deepseek4-flash_max`・`pi_commandcode_deepseek4-flash_high`・`pi_commandcode_deepseek4-flash_max`・`claude-code_ollama_opus_high`・`claude-code_ollama_sonnet_high`・`devin_swe2_high`）の `[agents.*]` 節が個人設定にあるかを探し、あればその節の `model`・`effort`・`provider`・`env` を雛形の同じ節と見比べるコマンド（Spec レビュー 2 回目の S4）。(3) 見つかったときの直し方: 雛形と同じ値か、意図しない値なら節を消して雛形を継承する。意図して変えている値だけを残す。割当の旧名は `_high` へ書き換える。`check` は未知の agent 名を拒否するが、同名の節の上書きは `list` に出ないので、(2) で見ないと気付けないことを書く
   - 参照元との残す差: OpenDesign Go（D2）、`agy_*`（#436）、Command Code の通常配置外（#337）、`pi-superagents-model-guard.ts` とリポジトリ別の tier の配置（#310・#313）、`OPENCODE_API_KEY`（#365）、`after_run` の `--project .`、DSH・Grok Build を入れないこと
