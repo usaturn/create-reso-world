@@ -395,7 +395,7 @@ import sys
 
 keys = [
     "ANTHROPIC_BASE_URL", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_API_KEY",
-    "ENABLE_CLAUDEAI_MCP_SERVERS",
+    "ENABLE_CLAUDEAI_MCP_SERVERS", "CLAUDE_CODE_EFFORT_LEVEL",
 ]
 with open(os.environ["HERDR_TEST_CLAUDE_DUMP"], "w", encoding="utf-8") as handle:
     json.dump({"argv": sys.argv[1:], "env": {k: os.environ.get(k) for k in keys}}, handle)
@@ -606,10 +606,54 @@ test_ollama_exec_requires_key() {
     assert_contains "$log" '^ANTHROPIC_AUTH_TOKEN=fake-ollama$'
     assert_contains "$log" '^ANTHROPIC_BASE_URL=https://ollama.com$'
     assert_contains "$log" '^ENABLE_CLAUDEAI_MCP_SERVERS=false$'
-    assert_contains "$log" '^__ARGV__=probe$'
+    assert_contains "$log" '^__ARGV__=--effort high probe$'
     assert_absent "$log" 'POLLUTED_'
     assert_absent "$log" '^OLLAMA_API_KEY='
     assert_absent "$log" '^ANTHROPIC_API_KEY='
+}
+
+# S: ccdd・ccddg・ccdgo・ccdol・claude-ollama-exec は、親シェルで export された
+# CLAUDE_CODE_EFFORT_LEVEL を子の claude に渡さない。#467 で各ランチャーは代入をやめて
+# env -u で外す形にしたので、-u が抜けても起動は成功し、親の値が --effort の既定に
+# 黙って勝つ（既定 high の DeepSeek が親の max で動く）。5 つの入口は別々に -u を持つので
+# 1 つのテストで全部を回す。ccda は自分で代入するので対象外。
+test_cc_launchers_drop_parent_effort_level() {
+    local test_home="${TEST_ROOT}/home-cc-effort"
+    make_claude_probe "$test_home"
+    mkdir -p "$test_home/.local/bin"
+    install -m 0755 "${REPO_ROOT}/.devcontainer/claude-ollama-exec" \
+        "$test_home/.local/bin/claude-ollama-exec"
+
+    local fn log
+    local -a logs=()
+    for fn in ccdd ccddg ccdgo ccdol; do
+        log="${test_home}/${fn}.json"
+        logs+=("$log")
+        run_zshrc_code "$test_home" \
+            "source \"\$ZSHRC_TEMPLATE\"; ${fn} probe" \
+            HERDR_TEST_CLAUDE_DUMP="$log" \
+            CLAUDE_CODE_EFFORT_LEVEL=parent-sentinel \
+            DEEPINFRA_TOKEN=fake-di \
+            OPENCODE_GO_CLAUDE_API_KEY=fake-go \
+            OLLAMA_API_KEY=fake-ollama
+    done
+    log="${test_home}/claude-ollama-exec.json"
+    logs+=("$log")
+    env -i HOME="$test_home" PATH="$test_home/.local/bin:$test_home/bin:/usr/bin:/bin" \
+        HERDR_TEST_CLAUDE_DUMP="$log" \
+        CLAUDE_CODE_EFFORT_LEVEL=parent-sentinel \
+        OLLAMA_API_KEY=fake-ollama \
+        "$test_home/.local/bin/claude-ollama-exec" probe
+
+    python3 - "${logs[@]}" <<'PY'
+import json
+import sys
+
+for path in sys.argv[1:]:
+    with open(path, encoding="utf-8") as handle:
+        data = json.load(handle)
+    assert data["env"]["CLAUDE_CODE_EFFORT_LEVEL"] is None, (path, data["env"])
+PY
 }
 
 # S: ccdgo は空白だけの優先キーを、有効な下位キーへ黙って読み替えず、子 claude を起動せずに失敗する。
@@ -683,4 +727,5 @@ test_deepinfra_launcher_requires_key
 test_alibaba_launcher_requires_key
 test_alibaba_exec_requires_key
 test_ollama_exec_requires_key
+test_cc_launchers_drop_parent_effort_level
 printf 'PASS: herdr Dev Container migration\n'
