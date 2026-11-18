@@ -237,3 +237,19 @@ controller が取り込み後に行う確認: `zshrc.txt` と `claude-ollama-exe
 - 既存テストが変更と無関係の理由で落ちる → base（`9d5b25af`）で同じテストを実行して切り分ける。base でも落ちるなら記録して続ける
 - 実装担当が `retry`（`BLOCKED`・`NEEDS_CONTEXT`）→ `concerns`・`incomplete` に答える文脈を足して 1 回だけ依頼し直す
 - 最初の確認で前提（runner の argv の順、Pi の `parseArgs`、Claude Code の上限の効き方）が違うと分かった → 仕様の意味を保つ最小の修正を ledger に書いて続ける。意味が変わるなら止まる
+
+## 実行記録（2026-11-18）
+
+- 実装担当は全 Task とも runner の `devin_swe2_max`（利用者の `--implement`。`fallback` なし）。identity は `SWE-2 Max`（Devin CLI 3000.14.30821）。Task のレビューは controller が起動した読み取り専用のサブエージェント（Task 1〜3 は Sonnet、Task 4 は Opus、再レビューは Sonnet）
+- ledger: `/workspaces/reso-world/tmp/agents/issue-467.vk70s9bd/sdd/2026-11-18-issue-467-agent-workspace-sync/progress.md`
+
+| Task | 依頼の回数 | 担当の所要時間 | commit | レビュー |
+| --- | --- | --- | --- | --- |
+| Task 1 agent-runner の雛形 | 1 | 286 秒 | `4bb9420f` | Approved |
+| Task 2 Pi の親・子と setup | 1 | 471 秒 | `b2c66a1b` | Approved |
+| Task 3 Claude Code のランチャー | 1 | 337 秒 | `8f37d1f1` | Approved |
+| Task 4 README | 3（初回＋修正 2 回） | 727＋219＋177 秒 | `e069cc2b`・`20e917d5`・`5b6040b8` | Needs fixes（Important 2 件）→ 修正 2 回で解決 |
+
+- controller の確認: Task 1 の `check`・`list`・`duplicate_model`（担当の中では runner の入れ子の起動が拒否されるため）、Task 2 の一時 HOME での親子の実効値と、`pigod` の `"$@"` を既定の引数の前に動かした写しで新しいテストが落ちること、Task 3 の新しいテストの RED（変更前の写しで `CLAUDE_CODE_EFFORT_LEVEL: 'max'`）/GREEN と、127.0.0.1 の受け口サーバーでの Claude Code の effort 16 件
+- 実装中の裁定: DeepInfra に `_max` を置かない理由は、Spec の文言（「Pi は high に丸める」）が誤りで、`pidid` の起動前の検査が止めるのが実際の挙動だった。README・`agent-runner.toml` のコメント・Spec を直した（結論は変えていない）
+- deferred（minor。PR 本文に一覧で書く）: Task 2 の 2 件、Task 4 の 8 件（ledger の `minor (deferred)` の行）
