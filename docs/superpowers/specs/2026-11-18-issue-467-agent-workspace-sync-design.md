@@ -54,7 +54,7 @@ create-reso-world と agent-workspace は同じ agent 名・Pi ラッパー名�
 - runner の Pi adapter は `[*command, --print, ..., --provider P, --model M, --thinking E, ...]` を組み立てる（`tools/agent_runner/adapters/pi.py`）。ラッパーは自分の既定引数の後ろに `"$@"` を置くので、runner の `--thinking` はラッパーの既定より後ろに来る。Pi 1.5.2 の `parseArgs` は後ろの `--thinking` を採る（`['--thinking','high',...,'--thinking','max']` → `max`。共通ヘルパーの起動前の検査も同じ parser を使い、既存テスト `test_effective_parent_options_are_checked` が後ろの値で検査・起動することを確かめている）
 - runner の Claude Code adapter は `--effort E` を渡す（`tools/agent_runner/adapters/claude_code.py`）。Claude Code 2.1.327 を 127.0.0.1 の受け口サーバーにつないで確かめた（記録は `tmp/agents/issue-467.vk70s9bd/spike-claude-effort.txt`）: `modelSettings.<ID>.maxEffortLevel = "high"` は独自のモデル名にも効き、`[1m]` を外した ID で `[1m]` 付きの割り当てにも効く。他のモデルは `--effort max` のまま。後ろの `--effort` と `--settings` が効く。親の `CLAUDE_CODE_EFFORT_LEVEL=max` は `--effort high` に勝つ
 - 設定に残せる `effortLevel` は `low`・`medium`・`high`・`xhigh` だけで `max` を持てない（Claude Code 2.1.327 の settings のスキーマ）。複数モデルのランチャーで「DeepSeek だけ `high`、他は `max`」にする方法は、上限（`maxEffortLevel`）しかない
-- Pi の保存済みカタログ（`~/.pi/agent/models-store.json`、2026-11-18 07:16 更新）に `openai-codex/gpt-6.2-sol`・`gpt-6.2-astra` がある。Pi 1.5.2 の組み込みカタログには無いので、`pi update --models` をしていない環境では、共通ヘルパーの起動前の検査が起動を止めて更新を案内する
+- Pi の保存済みカタログ（`~/.pi/agent/models-store.json`、2026-11-18 07:16 更新）に `openai-codex/gpt-6.2-sol`・`gpt-6.2-astra` がある。Pi 1.5.2 の組み込みカタログには無い。起動前にカタログと親・子の model を照合するのは `pigt`・`pidid` だけで（共通ヘルパーの `pi_launcher_require_models`）、カタログに無ければ起動を止めて `pi update --models` を案内する。`pigs`・`piga`・`pigl` の親は照合されない。子の Sol・Astra は、子 Pi の実モデル照合（`pi-superagents-model-guard.ts`）が、解決できない model での要求を送る前に止める。そのため README の既存環境の更新に、カタログの更新（`pi update --models`）と確認（`pi --list-models gpt-6.2-sol`）を書く
 - Codex CLI 0.170.0 のモデルキャッシュに `gpt-6.2-sol`、Devin 3000.14 の `devin models` に `swe-2-high` がある
 
 ## 方式の比較
@@ -177,4 +177,11 @@ create-reso-world と agent-workspace は同じ agent 名・Pi ラッパー名�
 
 ## レビュー記録
 
-（設計レビュー・Spec レビューの後に追記する）
+### 設計レビュー 1 回目
+
+- helper: `review_design.py`（外部担当）。`review_dir`: `/workspaces/reso-world/tmp/agents/issue-467.vk70s9bd/2026-11-18-issue-467-agent-workspace-sync-design.design-review/review-1`、`review_id`: `aca87ba83d79459bacef3bdceb929e3c`
+- reviewed の Spec の SHA-256: `70929637e5ab43316df47ceacff8c01d65f2bfefe2a82ae41242919030a656a3`（commit `e31e38f7`）
+- 担当: `requested_agent` と `actual_agent` は `pi_openai-codex_gpt6-sol_xhigh`（利用者の明示値。`fallback` は無く、使っていない）。identity は provider `openai-codex`・model `gpt-6.1-sol`・effort `xhigh`（親 checkout の雛形と `pigs` は、この PR のマージ前なので `gpt-6.1-sol` のまま）。`elapsed_seconds` は 184.5
+- 結果: `verdict: sound`、`concerns` 0 件、`questions_for_user`・`incomplete` なし。採否に含める指摘は無い
+- `outside_changes`: なし。`unprotected_changes`: `/tmp/pr-review-376-*`・`/tmp/review-fix-planning.*` の 6 つの worktree（他の作業の prunable な登録で、この run は触れていない）
+- レビューと別の訂正（controller）: 「確認した前提」の Pi のカタログの照合の記述を、実装（照合は `pigt`・`pidid` だけ）に合わせて直した。設計の決定は変えていない
