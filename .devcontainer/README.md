@@ -2016,9 +2016,9 @@ OAuth 情報は `~/.pi/agent/auth.json` に保存される。`~/.pi` は Dev Con
 `zsh scripts/setup_pi_opencode_go.zsh` を実行する。
 
 Pi 0.99.1 以上が必要（Luna はこの版に含まれる）。
-`gpt-6.2-sol`・`gpt-6.2-astra`・`gpt-6.1-terra` は Pi の同梱 catalog に無いため、利用前に
-`pi update --models` で保存済み catalog を更新する。`pi --version` を確認し、ログイン後に
-各モデルが `openai-codex` 行にあることを確認する。
+`gpt-6.2-sol`・`gpt-6.2-astra` は Pi の同梱 catalog に無く、`gpt-6.1-terra` も
+同梱 catalog に無い版があるため、利用前に `pi update --models` で保存済み catalog を
+更新する。`pi --version` を確認し、ログイン後に各モデルが `openai-codex` 行にあることを確認する。
 
 ```bash
 pi --version
