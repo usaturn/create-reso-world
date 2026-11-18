@@ -129,7 +129,7 @@ rebuild しない場合は、3 の代わりに次を行う。
 - `claude-alibaba-exec`: 同じ節の 21 の `install -m 0755` で `~/.local/bin` に置く。
   置かないと runner の `claude-code_alibaba_opus_max` は `launch_failed` になる
 - `claude-ollama-exec`: 同じ節の 22 の `install -m 0755` で `~/.local/bin` に置く。
-  置かないと runner の `claude-code_ollama_opus_max`・`claude-code_ollama_sonnet_max` は `launch_failed` になる
+  置かないと runner の `claude-code_ollama_opus_high`・`claude-code_ollama_sonnet_high` は `launch_failed` になる
 - Claude Code のランチャー: 「Claude Code の起動と更新」の `~/.zshrc` への反映。古い `~/.zshrc` に残る
   2026-10 以前の `ccda`（`claude-alibaba`）の関数は、`zshrc.txt` の新しい関数に置き換える。
   `update()` の Grok Build の行も削除する
@@ -810,6 +810,18 @@ Alibaba Cloud Model Studio の Token Plan の sonnet・haiku は `qwen3.8-flash`
 詳しくは「Ollama Cloud の DeepSeek-V4.1-Flash-1017（ccdol）」「OpenCode Go のモデルで Claude Code を起動する（#368）」
 「Alibaba Cloud Model Studio の Token Plan で Claude Code を起動する（#397）」にある。
 
+effort は、`ccdd`・`ccddg`・`ccdgo` が `--effort max` で起動し、DeepSeek V4.1 Flash の割り当てだけを
+`--settings` の `modelSettings.<model ID>.maxEffortLevel` で `high` に抑える（#467）。
+上限の対象は、`ccdd` が opus の `deepseek-ai/DeepSeek-V4.1-Flash`、`ccddg` が fable の
+`deepseek-ai/DeepSeek-V4.1-Flash`、`ccdgo` が opus の `deepseek-v4.1-flash`
+（`[1m]` を外した ID）で、ほかの tier のモデルは `max` のままである。`ccdol` は 4 つの tier すべてが
+DeepSeek V4.1 Flash 1017 なので、上限ではなく `--effort high` を既定にする。`ccda` は対象外で、
+従来どおり `CLAUDE_CODE_EFFORT_LEVEL=max` を子に代入する。
+後ろに書いた `--effort` は上限以下の値なら効き、後ろの `--settings`
+（例: `--settings '{"modelSettings":{"<model ID>":{"maxEffortLevel":"max"}}}'`）で上限を外せる。
+`CLAUDE_CODE_EFFORT_LEVEL` は `--effort` より優先されるため、4 つのランチャーは親の値を
+`env -u` で外してから起動する。
+
 短い起動名だけが `--dangerously-skip-permissions` を付ける。
 通常名は権限確認を省略せず起動する。追加の `--model` などは既定引数の後へ渡す。
 共通の `cc_launcher_unsets` で親シェルの認証・プロバイダ切替・モデル固定の値を
@@ -836,7 +848,7 @@ bind mount なので、移植元の一時ファイルから rename する方式�
 | 接続先（`ANTHROPIC_BASE_URL`） | `https://ollama.com` |
 | 認証 | `ANTHROPIC_AUTH_TOKEN` に `OLLAMA_API_KEY` を入れる（Bearer 認証。cloud endpoint は `x-api-key` だけでは受け付けない。`ANTHROPIC_API_KEY` は子に渡さない） |
 | model ID | `deepseek-v4.1-flash:1017[1m]`（fable・opus・sonnet・haiku の 4 つの tier すべて） |
-| effort（`CLAUDE_CODE_EFFORT_LEVEL`） | `max` |
+| effort | `high`（`claude --effort high` で起動。後ろの `--effort` が効く。親の `CLAUDE_CODE_EFFORT_LEVEL` は `env -u` で外す） |
 | 出力上限（`CLAUDE_CODE_MAX_OUTPUT_TOKENS`） | 65,536 |
 | claude.ai の MCP コネクタ（`ENABLE_CLAUDEAI_MCP_SERVERS`） | `false` |
 | API キーの作成 | `https://ollama.com/settings/keys` |
@@ -862,16 +874,16 @@ Claude Code は `ANTHROPIC_AUTH_TOKEN` を trim（Unicode の空白も除く）�
 
 #### agent-runner から使う（#408）
 
-雛形の `claude-code_ollama_opus_max`・`claude-code_ollama_sonnet_max` は `claude-ollama-exec`
+雛形の `claude-code_ollama_opus_high`・`claude-code_ollama_sonnet_high` は `claude-ollama-exec`
 （`.devcontainer/claude-ollama-exec`）を呼び、`ccdol` と同じ接続先へつなぐ。役割には既定で割り当てない。
 
-| 項目 | `claude-code_ollama_opus_max` | `claude-code_ollama_sonnet_max` |
+| 項目 | `claude-code_ollama_opus_high` | `claude-code_ollama_sonnet_high` |
 | --- | --- | --- |
 | `command` | `claude-ollama-exec` | `claude-ollama-exec` |
 | `model` | `opus` | `sonnet` |
 | `model_key` | `deepseek-v4.1-flash` | `deepseek-v4.1-flash` |
 | `provider` | `ollama` | `ollama` |
-| `effort` | `max` | `max` |
+| `effort` | `high` | `high` |
 | `env` | `HOME`・`PATH`・`OLLAMA_API_KEY` | `HOME`・`PATH`・`OLLAMA_API_KEY` |
 
 `claude-ollama-exec` は `install_beforehand.bash` が `~/.local/bin` に置く。Rebuild 前に使うときは、
@@ -889,7 +901,7 @@ Claude Code は `ANTHROPIC_AUTH_TOKEN` を trim（Unicode の空白も除く）�
 ```bash
 read -rs 'OLLAMA_API_KEY?Ollama API key (非表示): ' && export OLLAMA_API_KEY
 uv run --project "$PARENT_ROOT" --locked python tools/agent_runner/with_keys.py -- \
-  python -m tools.agent_runner run --workflow review --assign inspect=claude-code_ollama_opus_max \
+  python -m tools.agent_runner run --workflow review --assign inspect=claude-code_ollama_opus_high \
   --repository /path/to/repository --revision HEAD --prompt-file /path/to/prompt.txt
 ```
 
@@ -898,8 +910,9 @@ uv run --project "$PARENT_ROOT" --locked python tools/agent_runner/with_keys.py 
   値を表示せずに終了し、`claude` を起動しない（終了コード 1）。子には `ANTHROPIC_AUTH_TOKEN` だけを渡し、
   `ANTHROPIC_API_KEY` は渡さない（Bearer 認証のみ）
 - 同じ役割に並べられない組み合わせ（`check` が `duplicate_model` で拒否する）: `model_key` が
-  `deepseek-v4.1-flash` の agent（`pi_commandcode_deepseek4-flash_max`・
-  `pi_opencode-go_deepseek4-flash_max`・`pi_deepinfra_deepseek4-flash_high` と Ollama の 2 agent 同士）。
+  `deepseek-v4.1-flash` の agent（`pi_commandcode_deepseek4-flash_high`・`pi_commandcode_deepseek4-flash_max`・
+  `pi_opencode-go_deepseek4-flash_high`・`pi_opencode-go_deepseek4-flash_max`・
+  `pi_deepinfra_deepseek4-flash_high` と Ollama の 2 agent 同士）。
   さらに `opus` 側は `model` が `opus` の `claude-code_opus_xhigh`・`claude-code_alibaba_opus_max`、
   `sonnet` 側は `model` が `sonnet` の `claude-code_sonnet_xhigh` と同じ役割に並べられない
 
@@ -931,9 +944,12 @@ Ollama へ送る model ID からは外れる。`/status`・`/context`・起動�
 
 #### effort と出力上限
 
-- effort は `max` で起動する。Ollama は、モデルのメタデータにある名前（このモデルは
+- effort は `--effort high` で起動する。Ollama は、モデルのメタデータにある名前（このモデルは
   `low`・`high`・`max`）ならそのまま適用し、無い名前はモデルの既定（`high`）にする。
-  `/effort` で `medium`・`xhigh` などに変えると、`high` として扱われる
+  `/effort` で `medium`・`xhigh` などに変えると、`high` として扱われる。
+  後ろに書いた `--effort max` などは既定の `--effort high` より後ろになるので、そちらが効く。
+  親シェルの `CLAUDE_CODE_EFFORT_LEVEL` は `--effort` より優先されるため、ランチャーは
+  `env -u` で外してから起動する（`claude-ollama-exec` も同じ）
 - 出力上限 65,536 は運用上の上限で、サービスの最大値ではない（移植元が実 API で受け付けられると確かめた値）。
   指定しないと Claude Code は 32,000 を送るが、`max` では thinking も上限に数えるため、
   長い出力が途中で切れうる
@@ -980,7 +996,7 @@ usaturn/agent-workspace#868）。`ccdgo` は `--dangerously-skip-permissions` �
 | 接続先（`ANTHROPIC_BASE_URL`） | `https://opencode.ai/zen/go` |
 | 認証 | `ANTHROPIC_API_KEY` と `ANTHROPIC_AUTH_TOKEN` に同じキーを入れる（`x-api-key` で通り、Bearer だけでは 401。`ANTHROPIC_AUTH_TOKEN` は claude.ai のログインに戻らないための保険） |
 | キーの解決順 | `OPENCODE_GO_CLAUDE_API_KEY` → `OPENCODE_API_KEY` → `OPENCODE_GO_API_KEY`（空・未設定の変数は飛ばし、空白だけの変数は飛ばさずに止まる） |
-| effort（`CLAUDE_CODE_EFFORT_LEVEL`） | `max` |
+| effort | `max`（`claude --effort max` で起動。opus の DeepSeek V4.1 Flash だけ `--settings` の `maxEffortLevel` で `high` に抑える。親の `CLAUDE_CODE_EFFORT_LEVEL` は `env -u` で外す） |
 | 出力上限（`CLAUDE_CODE_MAX_OUTPUT_TOKENS`） | 65,536 |
 | claude.ai の MCP コネクタ（`ENABLE_CLAUDEAI_MCP_SERVERS`） | `false` |
 | API キーの作成 | OpenCode Console |
@@ -1116,15 +1132,20 @@ context 1,000,000・output 131,072 である。Hy4 は入力の上限が 983,010
 
 #### effort と出力上限
 
-- effort は `max` で起動する。`/v1/models` の `capabilities.reasoning.effort` は
+- effort は `--effort max` で起動する。opus の DeepSeek V4.1 Flash だけ、`--settings` の
+  `modelSettings."deepseek-v4.1-flash".maxEffortLevel` で `high` の上限を掛ける（#467）。
+  後ろに書いた `--effort` は上限以下の値なら効き、後ろの `--settings` で上限を外せる。
+  親シェルの `CLAUDE_CODE_EFFORT_LEVEL` は `--effort` より優先されるため、ランチャーは
+  `env -u` で外してから起動する。`/v1/models` の `capabilities.reasoning.effort` は
   Hy4 が `none`・`high`、DeepSeek V4.1 Flash が `low`・`high`・`max`、
   Muse Spark 1.3 Contributor が `minimal`〜`xhigh`、GLM 5.3 Flash が `low`・`high`・`max`。
   Hy4 と Muse Spark の一覧に `max` は無いが、`max` を送った要求は 200 で受け付けられた。
   どの段階に読み替えられるかは不明である
 - 出力上限 65,536 は Hy4 の出力上限に合わせた値である。Muse Spark と GLM は 131,072、
   DeepSeek V4.1 Flash は 384,000 まで出せるが、tier を切り替えても同じ 65,536 を送る
-- どの要求も `max_tokens: 65536`・`output_config.effort: max`・`thinking.type: adaptive`・
-  `stream: true` で送られる
+- どの要求も `max_tokens: 65536`・`thinking.type: adaptive`・`stream: true` で送られる。
+  `output_config.effort` は、上限を掛けた DeepSeek V4.1 Flash が `high`、
+  ほかのモデルが `max` になる（Claude Code 2.1.327、127.0.0.1 の受け口サーバーで確認）
 
 #### 400 MissingSessionID が出たとき
 
@@ -1467,7 +1488,7 @@ model の段に入れず、effort の段に置く。effort は設定値を使い
 | `cursor-grok47` | `cursor_grok4_xhigh` |
 
 既定の `review.inspect` は
-`claude-code_opus_xhigh,devin_swe2_max,pi_opencode-go_deepseek4-flash_max`、
+`claude-code_opus_xhigh,devin_swe2_max,pi_opencode-go_deepseek4-flash_high`、
 `issue.implement` は `self`（#391。司令塔が自分で実行する）、
 `fix.implement` は `self`（main の #377）。
 `fix.self-review`・`fix.fix-check` は `self` のままである。
@@ -1482,7 +1503,7 @@ Command Code の agent 定義自体は再契約後の明示的な `--assign` 用
 | agent ID | command | provider / model | effort | 認証 |
 | --- | --- | --- | --- | --- |
 | `pi_openai-codex_gpt6-terra_xhigh` | `pigt` | `openai-codex / gpt-6.1-terra` | `xhigh` | Codex OAuth（`auth.json`） |
-| `pi_openai-codex_gpt6-astra_xhigh` | `piga` | `openai-codex / gpt-6-astra` | `xhigh` | Codex OAuth（`auth.json`） |
+| `pi_openai-codex_gpt6-astra_xhigh` | `piga` | `openai-codex / gpt-6.2-astra` | `xhigh` | Codex OAuth（`auth.json`） |
 | `claude-code_sonnet_xhigh` | `claude` | 未指定 / `sonnet` | `xhigh` | 既存の Claude Code のログイン |
 | `pi_google-vertex_gemini4-argon_high` | `pigema` | `google-vertex / gemini-4-argon` | `high` | Vertex ADC（「Vertex AI の Gemini ランチャー」） |
 | `pi_alibaba_qwen4-max_max` | `piaq` | `alibaba / qwen4-max-preview` | `max` | `MAAS_ANTHROPIC_TOKEN`（ファイルに書かない） |
@@ -1493,7 +1514,7 @@ Command Code の agent 定義自体は再契約後の明示的な `--assign` 用
 Alibaba では `MAAS_ANTHROPIC_TOKEN` を引き継ぐ。
 
 このほか、Claude Code 用の exec を呼ぶ雛形 agent として、#401 の `claude-code_alibaba_opus_max` と
-#408 の `claude-code_ollama_opus_max`・`claude-code_ollama_sonnet_max` がある。設定と使い方は
+#408 の `claude-code_ollama_opus_high`・`claude-code_ollama_sonnet_high` がある。設定と使い方は
 「Alibaba Cloud Model Studio の Token Plan で Claude Code を起動する（#397）」と
 「Ollama Cloud の DeepSeek-V4.1-Flash-1017（ccdol）」にある。
 
@@ -1524,13 +1545,14 @@ uv run --project "$PARENT_ROOT" --locked python tools/agent_runner/with_keys.py 
 比較集合は `{model}` とし、`model_key` もあれば `{model, model_key}` とする。同じ役割の `agents` / `fallback` の全候補間、または `exclude_same_model_as` で指定した役割間に共通要素があれば、
 起動前に `duplicate_model` で拒否する。キーは model の比較を置き換えないため、同じ model ならキーが片方だけ、
 または互いに異なっても重複になる。文字列は完全一致で、自動正規化や未知の別名の推測はしない。
-CommandCode / OpenCode Go / DeepInfra の 3 DeepSeek agent と Ollama の 2 agent には `model_key = "deepseek-v4.1-flash"` を付け、
+Command Code / OpenCode Go / DeepInfra の DeepSeek agent（OpenCode Go・Command Code は `_high`・`_max` の
+2 つずつ、DeepInfra は `_high` のみ）と Ollama の 2 agent（`_high`）には `model_key = "deepseek-v4.1-flash"` を付け、
 provider ごとに異なる model ID でも同じ役割には混在させない。キー無しで異なる model の設定は受け入れる。
-SWE-2 の `devin_swe2_max`・`devin_swe2_medium` にも同じ `model_key = "swe-2"` を付けている。
-`devin_swe2_medium`（SWE-2 Medium）は既定のどの割り当てにも入っておらず、`--assign` か個人設定で選べる。
-2 つは同じ `model_key` なので、同じ役割に並べると `duplicate_model` で拒否される。
+SWE-2 の `devin_swe2_max`・`devin_swe2_high`・`devin_swe2_medium` にも同じ `model_key = "swe-2"` を付けている。
+`devin_swe2_high`（SWE-2 High）と `devin_swe2_medium`（SWE-2 Medium）は既定のどの割り当てにも入っておらず、
+`--assign` か個人設定で選べる。3 つは同じ `model_key` なので、同じ役割に並べると `duplicate_model` で拒否される。
 `claude-code_alibaba_opus_max` は `model` が `opus` なので、`claude-code_opus_xhigh` と同じ役割に並べられない。
-`claude-code_ollama_opus_max` も同じく `model` が `opus` で、`claude-code_ollama_sonnet_max` は `model` が `sonnet` なので
+`claude-code_ollama_opus_high` も同じく `model` が `opus` で、`claude-code_ollama_sonnet_high` は `model` が `sonnet` なので
 `claude-code_sonnet_xhigh` と同じ役割に並べられない。組み合わせは
 「Alibaba Cloud Model Studio の Token Plan で Claude Code を起動する（#397）」と
 「Ollama Cloud の DeepSeek-V4.1-Flash-1017（ccdol）」にある。
@@ -1558,7 +1580,7 @@ Spec レビューと設計レビューを行う。雛形・個人設定にレビ
 ### 旧担当からの個人設定の移行
 
 #243 で DSH 担当を撤去した。個人設定 `~/.config/agent-runner/config.toml` に `runtime = "dsh"` の agent 定義があれば削除し、
-担当と fallback の参照を `pi_opencode-go_deepseek4-flash_max` など利用可能な担当へ手で変更する。`workflows.review.after_run` を上書きしている場合は、
+担当と fallback の参照を `pi_opencode-go_deepseek4-flash_high` など利用可能な担当へ手で変更する。`workflows.review.after_run` を上書きしている場合は、
 `finalize-parent` を外し、`attach-runner` を残す。個人設定は自動更新しない。
 
 #305 の命名変更も自動移行・旧名 alias は用意しない。対象の個人設定は上記の場所の解決規則で確認し、
@@ -1597,13 +1619,13 @@ Sol の旧 `max` を使い続ける場合は、個人設定に完全な独自定
 [agents.pi_openai-codex_gpt6-sol_max]
 runtime = "pi"
 command = ["pigs"]
-model = "gpt-6.1-sol"
+model = "gpt-6.2-sol"
 provider = "openai-codex"
 effort = "max"
 env = ["HOME", "PATH", "OPENCODE_API_KEY"]
 
 [workflows.review.assignments.inspect]
-agents = ["pi_openai-codex_gpt6-sol_max", "devin_swe2_max", "pi_opencode-go_deepseek4-flash_max"]
+agents = ["pi_openai-codex_gpt6-sol_max", "devin_swe2_max", "pi_opencode-go_deepseek4-flash_high"]
 ```
 
 編集後は、リポジトリのルートで上記の `check` と `list` を実行する。成功は設定の検査であり、認証や実サービス起動の成功を意味しない。
@@ -1617,7 +1639,7 @@ agents = ["pi_openai-codex_gpt6-sol_max", "devin_swe2_max", "pi_opencode-go_deep
 
 1. 個人設定の `review.inspect` に上書きが無ければ、新しい雛形の 3 人を継承する。
    上書きがある場合だけ、バックアップして該当する `agents` / `fallback` の Command Code 参照を見直す。
-   現在の推奨先は `pi_opencode-go_deepseek4-flash_max`。Command Code / OpenCode Go / DeepInfra の
+   現在の推奨先は `pi_opencode-go_deepseek4-flash_high`。Command Code / OpenCode Go / DeepInfra の
    DeepSeek を同じ役割に併記すると `duplicate_model` になるため、追加でなく置換する。
    `check` / `list` と `load_config()` などで実効割当を確認する。設定検査の成功は契約・認証の有効性を意味しない。
 2. 不要な `COMMANDCODE_API_KEY` の代入・export を `~/.zshrc` から外す。
@@ -1633,12 +1655,14 @@ agents = ["pi_openai-codex_gpt6-sol_max", "devin_swe2_max", "pi_opencode-go_deep
 既存の他 provider と tier は保持する。tier が欠けていれば
 `zsh scripts/setup_pi_superagents.zsh --if-absent` で補う。
 `~/.local/bin` は bind mount 外なので、再有効化後も Rebuild のたびに Command Code の setup を再実行する。
-runner では `pi_commandcode_deepseek4-flash_max` を `--assign` で明示して選ぶ。再契約しても既定の割当は変わらない。
+runner では `pi_commandcode_deepseek4-flash_high`・`pi_commandcode_deepseek4-flash_max` を `--assign` で明示して選ぶ。再契約しても既定の割当は変わらない。
 
 ### Devin の agent 名の変更（#341）
 
 #341 で `devin_swe2-max_default` を `devin_swe2_max` に改名し、`devin_swe2_medium` を足した。
 上の #305 の表は当時の変更記録なので書き換えない。#305 より前の `devin-swe` も、今の名前は `devin_swe2_max` である。
+#467 で `devin_swe2_high` を足し、SWE-2 の定義は `devin_swe2_max`・`devin_swe2_high`・`devin_swe2_medium` の
+3 つになった（`model_key = "swe-2"` は共通。`devin_swe2_high` は既定の割当に入らず、`--assign` か個人設定で選ぶ）。
 
 自動の移行も旧名の alias も用意しない。個人設定（非対話エージェントのランナー（agent-runner）の個人設定の場所の規則で確かめる）を
 バックアップしてから、次の両方を同じ編集で行う。
@@ -1652,10 +1676,98 @@ runner では `pi_commandcode_deepseek4-flash_max` を `--assign` で明示し�
 - 旧名を参照するだけの設定: 雛形から旧定義が無くなるので `invalid_reference` で止まる
 - 旧名の節に一部のキーだけを書いた上書き（`env` だけなど）: `runtime` などが欠けるので `invalid_type` で止まる
 - 旧名の節が完全な定義: 独自の agent として読み込まれるので止まらない。
-  雛形の `model_key` を継承しないため、`devin_swe2_medium` と同じ役割に並べても拒否されない
+  雛形の `model_key` を継承しないため、`devin_swe2_medium`・`devin_swe2_high` と同じ役割に並べても拒否されない
 
 編集後は、リポジトリのルートで上記の `check` と `list` を実行する。
 旧名を書いていない個人設定（rebuild で置かれる `agent-runner-personal.toml` を含む）は移行が要らない。
+
+### agent-workspace の現行構成との同期（#467）
+
+#467 で、同じ agent 名・Pi ラッパー名を使う usaturn/agent-workspace の現行構成に、
+このリポジトリが使っている範囲で揃えた。Sol・Astra のモデル（`gpt-6.2-sol`・`gpt-6.2-astra`）、
+DeepSeek V4.1 Flash の既定 `high`（Pi の明示的な `max` は残す）、Devin SWE-2 の
+`max`・`high`・`medium` の 3 定義が対象である。参照元のファイルを丸ごと写すのではなく、
+対象の値だけを移した。
+
+#### DeepSeek V4.1 Flash の推論強度
+
+既定は `high`。対象の経路は次のとおり。
+
+- runner の雛形: `pi_opencode-go_deepseek4-flash_high`・`pi_commandcode_deepseek4-flash_high`・
+  `pi_deepinfra_deepseek4-flash_high`・`claude-code_ollama_opus_high`・`claude-code_ollama_sonnet_high`
+  （いずれも `effort = "high"`）。既定の `review.inspect` の 3 人目は `pi_opencode-go_deepseek4-flash_high`
+- 親 Pi: `pigod`・`piccd` が `--thinking high`（`pidid` は従来どおり `high`）。
+  runner の `_max` は後ろに `--thinking max` を付けるので、Pi は後ろの値を使う
+  （Pi 1.5.2 の引数解析は後ろの `--thinking` を採る）
+- 子 Pi の tier: `.devcontainer/pi-superagents/` の各設定の DeepSeek V4.1 Flash の枠はすべて `high`
+- Claude Code: `ccdd`・`ccddg`・`ccdgo` は `--effort max` で起動し、DeepSeek V4.1 Flash の
+  割り当てだけ `--settings` の `modelSettings.<model ID>.maxEffortLevel` で `high` の上限を掛ける
+  （ほかのモデルは `max` のまま）。`ccdol`・`claude-ollama-exec` は `--effort high` が既定。
+  どちらの経路も親の `CLAUDE_CODE_EFFORT_LEVEL` は `env -u` で外す。
+  上限の外し方と後ろの `--effort` は「Claude Code の起動と更新」にある
+
+Pi の対話中に `/model` で DeepSeek V4.1 Flash へ切り替えたときの thinking は、Pi の
+`modelThinkingLevels` の設定が決める。このリポジトリは利用者の `~/.pi` のその設定を書き換えない。
+
+#### `max` の agent
+
+Pi の `pi_opencode-go_deepseek4-flash_max`・`pi_commandcode_deepseek4-flash_max` は
+雛形に残すが、既定のどの割当にも入っていない。`--assign` か個人設定で選ぶ。
+`_high` と `_max` は同じ `model_key`（`deepseek-v4.1-flash`）なので、同じ役割に並べると
+`duplicate_model` で拒否される。
+DeepInfra には `_max` を置かない。`pi-models.json` の `deepseek-ai/DeepSeek-V4.1-Flash-1017` の
+`thinkingLevelMap` が `max` を `null` にしており、Pi は対応する最大の `high` に丸めるため、
+`_max` を定義しても `max` では動かない。Claude Code 用にも `max` の agent は追加しない
+（`ccda` の Alibaba は対象外で `max` のまま）。
+
+#### 既存環境の更新
+
+- `zshrc.txt`・`install_beforehand.bash` が置くラッパー（`pigod`・`pigs`・`piga`・
+  `claude-ollama-exec` など）と `~/.zshrc` のランチャー関数は、Rebuild Container で更新される
+- `piccg`・`piccd` は Rebuild では配置・更新されない。再契約して使う場合だけ、リポジトリのルートで
+  `zsh scripts/setup_pi_commandcode_goat.zsh` を再実行する
+- 子 Pi の tier は Rebuild（`--if-absent`）では更新されない。ランチャーの外のシェルで、
+  リポジトリのルートから `zsh scripts/setup_pi_superagents.zsh` を実行する。既存の設定は
+  `config.json.bak.<タイムスタンプ>` に退避される。tier を手で編集している場合は、退避した設定と
+  見比べて必要な編集を戻す
+- モデルカタログは `pi update --models` で更新し、`pi --list-models gpt-6.2-sol` などで確かめる。
+  `gpt-6.2-sol`・`gpt-6.2-astra` は Pi の同梱 catalog に無く、保存済み catalog の更新が必要である
+
+#### 個人設定の確認
+
+個人設定の場所は 1 か所で、`AGENT_RUNNER_CONFIG` のパス、無ければ `XDG_CONFIG_HOME` が
+絶対パスのときだけ `XDG_CONFIG_HOME/agent-runner/config.toml`、それ以外は
+`~/.config/agent-runner/config.toml` である（「非対話エージェントのランナー（agent-runner）」）。
+更新前から個人設定を使っている環境では、実際の個人設定のパスに置き換えて次を実行する。
+
+```bash
+# (1) 旧モデル・旧名
+grep -n -E 'gpt-6\.1-sol|gpt-6-astra|claude-code_ollama_(opus|sonnet)_max' ~/.config/agent-runner/config.toml
+# (2) この Issue で値を変えた・足した agent の節の上書き。あれば雛形の同じ節と model・effort・provider・env を見比べる
+grep -n -A8 -E '^\[agents\.(pi_openai-codex_gpt6-(sol|astra)_xhigh|codex_openai_gpt6-sol_default|pi_(opencode-go|commandcode)_deepseek4-flash_(high|max)|claude-code_ollama_(opus|sonnet)_high|devin_swe2_high)\]' \
+  ~/.config/agent-runner/config.toml
+```
+
+見つかったときの直し方は次のとおり。
+
+- (1) の旧モデル・旧名は新しい値・名前に書き換える。割当（`agents`・`fallback`）の Ollama の旧名は
+  `_high` へ書き換える。`check` は未知の agent 名を拒否するが、同名の節の上書きは
+  `list` の実効値に雛形との差として出ないので、(2) で見ないと気付けない
+- (2) の節は、雛形と同じ値か意図しない値なら節を消して雛形を継承する。意図して変えている値だけを残す
+
+#### 参照元との残す差
+
+参照元の現行構成のうち、このリポジトリに取り込まなかったもの。
+
+- OpenDesign Go は採用しない。`pigs` の cheap tier は `opencode-go/deepseek-v4.1-flash` の `high` のまま、
+  `pigs` の runner の env は `OPENCODE_API_KEY` を維持する。`piodg`・`pi_opendesign-go_*`・
+  `claude-code_opendesign-go_*`・`claude-opendesign-go-exec` も追加しない
+- `agy_*` の agent は足さない（#436。agent_runner に agy adapter が無い）
+- Command Code GOAT は通常配置・既定の割当に戻さない（#337）
+- 子 Pi の実モデル照合はこのリポジトリの `pi-superagents-model-guard.ts`、tier 設定は
+  `subagent.d/create-reso-world/<launcher>/` に置く（#310・#313）
+- `pigs` の `OPENCODE_API_KEY`（#365）と `after_run` の `--project .` は、このリポジトリの構成を維持する
+- DSH・Grok Build は入れない
 
 ## pi の旧拡張・MCP 設定の移行
 
@@ -1801,7 +1913,9 @@ Gemini 3.8 Flash / Gemini 3.1 Pro Preview / Gemini 4 Argon は Pi の組み込�
 対応付けている。
 
 `pigod` は同じ `opencode-go` プロバイダを、既定モデル `deepseek-v4.1-flash` で
-起動するラッパーである。`pigo` と違い `pi-models.json` には何も足していない。
+起動するラッパーである。既定の thinking は `high`（#467）。runner の
+`pi_opencode-go_deepseek4-flash_max` は後ろに `--thinking max` を付け、
+Pi は後ろの値を使うため `max` になる。`pigo` と違い `pi-models.json` には何も足していない。
 `deepseek-v4.1-flash` は pi のモデルカタログ（`~/.pi/agent/models-store.json`）
 に `baseUrl`（`https://opencode.ai/zen/go/v1`）付きで存在するため、
 `--provider opencode-go` の指定だけでエンドポイントに解決される。カタログは
@@ -1854,7 +1968,9 @@ Command Code GOAT は契約停止中であり、以下の定義・ランチャ�
 リクエスト上限は 5 時間 $14・週 $35・月 $70 の使用量までである。
 
 `piccd` は同じ `commandcode` プロバイダを共有し、既定モデルだけを
-`deepseek/deepseek-v4.1-flash` に替えたラッパーである。`--models` はこの
+`deepseek/deepseek-v4.1-flash` に替えたラッパーである。既定の thinking は
+`high`（#467）。runner の `pi_commandcode_deepseek4-flash_max` は後ろに
+`--thinking max` を付け、Pi は後ろの値を使うため `max` になる。`--models` はこの
 1 件だけなので、Ctrl+P の切替候補も DeepSeek のみになる。reasoning は
 `low` / `medium` / `high` / `xhigh` / `max` を受け付ける一方 `minimal` は
 拒否するため、`thinkingLevelMap` は `minimal` を `low` に寄せ、他は恒等に
@@ -1878,9 +1994,9 @@ Command Code GOAT は契約停止中であり、以下の定義・ランチャ�
 
 | launcher | Provider / Model |
 |---|---|
-| `piga` | `openai-codex/gpt-6-astra` |
+| `piga` | `openai-codex/gpt-6.2-astra` |
 | `pigt` | `openai-codex/gpt-6.1-terra` |
-| `pigs` | `openai-codex/gpt-6.1-sol` |
+| `pigs` | `openai-codex/gpt-6.2-sol` |
 | `pigl` | `openai-codex/gpt-6-luna` |
 
 4 つとも親 Pi は ChatGPT Pro サブスクリプションの Codex OAuth 認証を使う。
@@ -1898,18 +2014,21 @@ OAuth 情報は `~/.pi/agent/auth.json` に保存される。`~/.pi` は Dev Con
 別の model に要求を送る）。必要なら `OPENCODE_API_KEY` を設定して
 `zsh scripts/setup_pi_opencode_go.zsh` を実行する。
 
-GPT-6.1 Sol のため Pi 0.99.1 以上が必要（GPT-6 Astra / Luna もこの版に含まれる）。利用前に `pi --version` を確認し、
-ログイン後に各モデルが `openai-codex` 行にあることを確認する。
+Pi 0.99.1 以上が必要（GPT-6.1 Sol・GPT-6 Astra / Luna / Terra はこの版に含まれる）。
+`gpt-6.2-sol`・`gpt-6.2-astra` は Pi の同梱 catalog に無いため、利用前に `pi update --models` で
+保存済み catalog を更新する。`pi --version` を確認し、ログイン後に各モデルが
+`openai-codex` 行にあることを確認する。
 
 ```bash
 pi --version
-pi --list-models gpt-6-astra
-pi --list-models gpt-6.1-sol
+pi update --models
+pi --list-models gpt-6.2-astra
+pi --list-models gpt-6.2-sol
 pi --list-models gpt-6-luna
 pi --list-models gpt-6.1-terra
 ```
 
-モデル行が無い場合は `pi update --models` で catalog を更新し、必要なら `pi update` で本体も更新する。
+モデル行が無い場合は `pi update` で本体も更新する。
 `pi --list-models` は認証を解決した後の利用可能なモデルを表示するため、未認証時には Pi がモデル定義を持っていても
 `openai-codex` 行は表示されない。4 ランチャーは `--thinking xhigh` で起動する。
 子 Pi の tier は下表のとおりで、`pigt` は Luna / Sol / Terra を使う。
@@ -2075,7 +2194,7 @@ pi --list-models deepseek-v4.1-flash
 プロバイダの行は表示されない。`pixg` は `--thinking xhigh` で起動する。
 Grok 4.7 の thinking level は `low` / `medium` / `high` / `xhigh` で、
 `xhigh` が実際の最大値である。子 Pi は `cheap` / `balanced` が
-`opencode-go/deepseek-v4.1-flash` の `max`、`max` が `xai/grok-4.7` の
+`opencode-go/deepseek-v4.1-flash` の `high`、`max` が `xai/grok-4.7` の
 `xhigh` を使う。未認証時に別モデルへ自動フォールバックはしない。
 
 ### Vertex AI の Gemini ランチャー（agent-workspace #578・#680）
@@ -2331,7 +2450,7 @@ export される（`OLLAMA_API_KEY` と `MAAS_ANTHROPIC_TOKEN` は書かない�
   `ANTHROPIC_BASE_URL` の完全一致で `ANTHROPIC_AUTH_TOKEN` から `DEEPINFRA_TOKEN` が補われる
   （ほかのランチャーセッションからは補われない）
 - `OLLAMA_API_KEY` は Claude Code の `ccdol`・`claude-ollama` と、agent-runner の
-  `claude-code_ollama_opus_max`・`claude-code_ollama_sonnet_max` が呼ぶ `claude-ollama-exec` が読む。
+  `claude-code_ollama_opus_high`・`claude-code_ollama_sonnet_high` が呼ぶ `claude-ollama-exec` が読む。
   「秘密情報」の env ファイルには書かない。`ccdol` 起動セッションから `with_keys.py` 経由で
   ランナーを起動するときは、`ANTHROPIC_BASE_URL`（`https://ollama.com`）の完全一致で
   `ANTHROPIC_AUTH_TOKEN` から補われる（ほかのランチャーセッションからは補われない）。使うシェルで export する。
@@ -2455,20 +2574,20 @@ wrapper は shell として env ファイルを実行しない。補う名前を
 | 経路 | 雛形の agent | key |
 | --- | --- | --- |
 | 今の環境、`ccdd` / `ccddg` セッションの導出、または env ファイル | `pi_deepinfra_deepseek4-flash_high` | `DEEPINFRA_TOKEN` |
-| 今の環境、`ccdgo` セッションの導出、または env ファイル（`opencode-go` の第一経路は下の `auth.json`） | `pi_opencode-go_deepseek4-flash_max`・`pi_opencode-go_glm5-flash_max`・`pi_openai-codex_gpt6-sol_xhigh` | `OPENCODE_API_KEY` |
-| 今の環境、または env ファイルのみ（導出元ランチャー無し） | `pi_commandcode_deepseek4-flash_max` | `COMMANDCODE_API_KEY`（契約停止中。通常は書かない） |
+| 今の環境、`ccdgo` セッションの導出、または env ファイル（`opencode-go` の第一経路は下の `auth.json`） | `pi_opencode-go_deepseek4-flash_high`・`pi_opencode-go_deepseek4-flash_max`・`pi_opencode-go_glm5-flash_max`・`pi_openai-codex_gpt6-sol_xhigh` | `OPENCODE_API_KEY` |
+| 今の環境、または env ファイルのみ（導出元ランチャー無し） | `pi_commandcode_deepseek4-flash_high`・`pi_commandcode_deepseek4-flash_max` | `COMMANDCODE_API_KEY`（契約停止中。通常は書かない） |
 | 今の環境（`cc_launcher_unsets` 対象外のためランチャーセッションでも残る）、または env ファイル | `pi_google-vertex_gemini3-flash_high`・`pi_google-vertex_gemini4-argon_high` | `GOOGLE_APPLICATION_CREDENTIALS`・`GOOGLE_CLOUD_PROJECT`・`GCLOUD_PROJECT`・`GOOGLE_CLOUD_LOCATION` |
 | 今の環境、または `ccda` セッションの導出（env ファイルに置かない方針） | `pi_alibaba_qwen4-max_max`・`claude-code_alibaba_opus_max` | `MAAS_ANTHROPIC_TOKEN` |
-| 今の環境、または `ccdol` セッションの導出（env ファイルに置かない方針） | `claude-code_ollama_opus_max`・`claude-code_ollama_sonnet_max` | `OLLAMA_API_KEY` |
+| 今の環境、または `ccdol` セッションの導出（env ファイルに置かない方針） | `claude-code_ollama_opus_high`・`claude-code_ollama_sonnet_high` | `OLLAMA_API_KEY` |
 | `~/.pi/agent/auth.json` | `pi_openai-codex_gpt6-sol_xhigh`・`pi_openai-codex_gpt6-terra_xhigh`・`pi_openai-codex_gpt6-astra_xhigh` | `/login openai-codex` の OAuth |
 | `~/.pi/agent/auth.json` | `pi_xai_grok4_xhigh` | `/login xai` の OAuth |
-| `~/.pi/agent/auth.json` | `pi_opencode-go_deepseek4-flash_max`・`pi_opencode-go_glm5-flash_max` | 保存した api_key（`OPENCODE_API_KEY` が無くてもここから読める） |
+| `~/.pi/agent/auth.json` | `pi_opencode-go_deepseek4-flash_high`・`pi_opencode-go_deepseek4-flash_max`・`pi_opencode-go_glm5-flash_max` | 保存した api_key（`OPENCODE_API_KEY` が無くてもここから読める） |
 | HOME 配下のログイン | `claude-code_opus_xhigh`・`claude-code_sonnet_xhigh` | `~/.claude`・`~/.claude.json` |
 | HOME 配下のログイン | `codex_openai_gpt6-sol_default` | `~/.codex` |
 | HOME 配下のログイン | `cursor_auto_default`・`cursor_grok4_xhigh` | `~/.cursor`・`~/.config/cursor` |
-| HOME 配下のログイン | `devin_swe2_max`・`devin_swe2_medium` | `~/.config/devin`・`~/.local/share/devin` |
+| HOME 配下のログイン | `devin_swe2_max`・`devin_swe2_high`・`devin_swe2_medium` | `~/.config/devin`・`~/.local/share/devin` |
 
-`OLLAMA_API_KEY` は雛形の `claude-code_ollama_opus_max`・`claude-code_ollama_sonnet_max` の `env` にあり、
+`OLLAMA_API_KEY` は雛形の `claude-code_ollama_opus_high`・`claude-code_ollama_sonnet_high` の `env` にあり、
 `ccdol` セッションではランチャー環境から補う。env ファイルには置かない。
 `OPENCODE_GO_API_KEY` も雛形の `env` には無いので、ファイルにあっても子には届かない。
 
@@ -2526,12 +2645,12 @@ Herdr の復元用の Pi の拡張（「Herdr の復元とランチャー」）�
 | `pigod` | `opencode-go/muse-spark-1.3-contributor` | `opencode-go/deepseek-v4.1-flash` | `opencode-go/deepseek-v4.1-flash` |
 | `piccg`（契約停止中・手動配置） | `commandcode/meta/muse-spark-1.3-contributor` | `commandcode/meta/muse-spark-1.3-contributor` | `commandcode/deepseek/deepseek-v4.1-flash` |
 | `piccd`（契約停止中・手動配置） | `commandcode/meta/muse-spark-1.3-contributor` | `commandcode/deepseek/deepseek-v4.1-flash` | `commandcode/deepseek/deepseek-v4.1-flash` |
-| `piga` | `openai-codex/gpt-6-luna` | `openai-codex/gpt-6.1-sol` | `openai-codex/gpt-6-astra` |
-| `pigt` | `openai-codex/gpt-6-luna` | `openai-codex/gpt-6.1-sol` | `openai-codex/gpt-6.1-terra` |
+| `piga` | `openai-codex/gpt-6-luna` | `openai-codex/gpt-6.2-sol` | `openai-codex/gpt-6.2-astra` |
+| `pigt` | `openai-codex/gpt-6-luna` | `openai-codex/gpt-6.2-sol` | `openai-codex/gpt-6.1-terra` |
 | `pidid` | `deepinfra/deepseek-ai/DeepSeek-V4.1-Flash-1017` | `deepinfra/deepseek-ai/DeepSeek-V4.1-Flash-1017` | `deepinfra/deepseek-ai/DeepSeek-V4.1-Flash-1017` |
 | `piaq` | `alibaba/qwen3.8-flash` | `alibaba/qwen4-max-preview` | `alibaba/qwen4-max-preview` |
-| `pigs` | `opencode-go/deepseek-v4.1-flash` | `openai-codex/gpt-6.1-sol` | `openai-codex/gpt-6.1-sol` |
-| `pigl` | `openai-codex/gpt-6-luna` | `openai-codex/gpt-6.1-sol` | `openai-codex/gpt-6.1-sol` |
+| `pigs` | `opencode-go/deepseek-v4.1-flash` | `openai-codex/gpt-6.2-sol` | `openai-codex/gpt-6.2-sol` |
+| `pigl` | `openai-codex/gpt-6-luna` | `openai-codex/gpt-6.2-sol` | `openai-codex/gpt-6.2-sol` |
 | `pixg` | `opencode-go/deepseek-v4.1-flash` | `opencode-go/deepseek-v4.1-flash` | `xai/grok-4.7` |
 | `pigemf` | `google-vertex/gemini-3.8-flash` | `google-vertex/gemini-3.8-flash` | `google-vertex/gemini-3.8-flash` |
 | `pigemp` | `google-vertex/gemini-3.8-flash` | `google-vertex/gemini-3.1-pro-preview` | `google-vertex/gemini-3.1-pro-preview` |
@@ -2540,9 +2659,13 @@ Herdr の復元用の Pi の拡張（「Herdr の復元とランチャー」）�
 `piga` / `pigt` の子 Pi は `cheap` / `balanced` が `xhigh`、`max` が `max`。
 `pidid` は全 tier が `high`。
 `piaq` は全 tier が `max`。
-`pigs` の子 Pi は `cheap` が `max`、`balanced` が `xhigh`、`max` が `max`。
+`pigo` は `cheap` / `balanced` の Muse Spark が `max`、DeepSeek の `max` が `high`。
+`pigod` は `cheap` の Muse Spark が `max`、DeepSeek の `balanced` / `max` が `high`。
+`piccg` は `cheap` / `balanced` の Muse Spark が `max`、DeepSeek の `max` が `high`。
+`piccd` は `cheap` の Muse Spark が `max`、DeepSeek の `balanced` / `max` が `high`。
+`pigs` の子 Pi は `cheap` が `high`、`balanced` が `xhigh`、`max` が `max`。
 `pigl` の子 Pi は全 tier が `xhigh`。`pixg` の子 Pi は DeepSeek の
-`cheap` / `balanced` が `max`、Grok の `max` が `xhigh`。
+`cheap` / `balanced` が `high`、Grok の `max` が `xhigh`。
 `pigemf`・`pigemp`・`pigema` は全 tier が `high`。`pigema` は Gemini 4 Argon の単価が高いため、
 軽い子タスクの `cheap` だけを Gemini 3.8 Flash にしている。
 tier を変更するときは、リポジトリの `.devcontainer/pi-superagents/<launcher>.json` を編集してから次を実行する。`install_beforehand.bash` は既存の設定を保持するため、rebuild だけでは反映されない。
@@ -2593,7 +2716,7 @@ Pi は、子 Pi に渡された `--models <provider>/<id>:<thinking>` を、資�
 
 各ランチャーの tier 設定は、`superagents.extensions` に `~/.pi/agent/extensions/subagent.d/pi-superagents-model-guard.ts` を挙げる。pi-superagents は子 Pi を `--no-extensions` で起動し、ここに挙げた拡張だけを読み込ませる。この拡張（リポジトリの `.devcontainer/pi-superagents-model-guard.ts`。`setup_pi_superagents.zsh` が通常と `--if-absent` のどちらでも置き直す）は、子 Pi の `session_start` で、Pi が最初の要求に使う model を `--models` と照合する。
 
-- 一致の規則: 末尾の `:<thinking>` を外す。最初の `/` の前が Pi の知っている provider なら provider と ID の両方を比べ（`deepinfra/deepseek-ai/DeepSeek-V4.1-Flash-1017` の ID は `deepseek-ai/DeepSeek-V4.1-Flash-1017`）、それ以外はパターン全体を ID と比べる。大文字小文字は区別しない。glob は一致しないものとする。Pi は部分一致でも model を選ぶ（`sol` が `gpt-6.1-sol` になるなど）が、照合は部分一致を認めないので、subagent ツールで model を短い名前で上書きした子も止まる。上書きするときは正確な ID か `provider/id` で指定する
+- 一致の規則: 末尾の `:<thinking>` を外す。最初の `/` の前が Pi の知っている provider なら provider と ID の両方を比べ（`deepinfra/deepseek-ai/DeepSeek-V4.1-Flash-1017` の ID は `deepseek-ai/DeepSeek-V4.1-Flash-1017`）、それ以外はパターン全体を ID と比べる。大文字小文字は区別しない。glob は一致しないものとする。Pi は部分一致でも model を選ぶ（`sol` が `gpt-6.2-sol` になるなど）が、照合は部分一致を認めないので、subagent ツールで model を短い名前で上書きした子も止まる。上書きするときは正確な ID か `provider/id` で指定する
 - 一致しない、Pi が model を選べない、Pi の API から読めない、照合の途中で例外が起きた場合は、要求を送る前に終了コード 1 で終わる。資格情報を解決し直さないので、key のコマンドの実行は増えない
 - 拡張は `subagent.d/` の直下にあり、Pi の自動探索の対象外なので、親の Pi（ランチャーで起動した TUI）には読み込まれない
 
