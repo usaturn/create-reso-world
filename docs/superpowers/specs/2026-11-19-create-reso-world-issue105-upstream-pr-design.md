@@ -176,5 +176,8 @@ The guides currently have these qualifications:
 - #101/#33の完了、提出head/base、compare、Windows CIと検証treeを再確認した。
 - 4機能の利用経路を2担当で読取レビューし、提出を止める重大な問題がないことを確認した。ビルド・テストの再実行はしていない。
 - 本文の旧「投稿直前に再度許可を求める」条件は、上記の利用者指示で置き換え、Issue #105に記録した。
-- この文書をcreate-reso-worldの文書専用ブランチ・PRに公開し、内容を読み戻してから上流PRを作成する。
-- 上流PR URLと作成後の状態は、作成後にこの文書とIssue #105へ追記する。
+- この文書とPlanを文書専用 PR https://github.com/usaturn/create-reso-world/pull/472 で公開した。初回公開commitは 7105f701e60438183558a4b7be71424f1d816438。リモートの2文書を読み戻し、本文の一致を確認した。
+- 投稿直前にfork head・上流main・同目的/同headの既存PRを再確認した。refは上記と一致し、重複PRは無かった。
+- GitHub連携で repository=orange3134/resoloop、base=main、head=usaturn:feat/plugin-system、draft=false により作成を試みたが、APIが 403: Resource not accessible by integration を返した。失敗後の検索でも同headのPRは見つからなかった。上流PRは未作成である。
+- ブラウザー経由も確認したがGitHubは未ログインで、ログインフォームの対象フィールド取得がタイムアウトした。手動ログインの引継ぎが必要である。認証後にrefと重複を再確認して、この文書のタイトル・本文で直接投稿する。
+- 投稿の許可は既にある。今回の停止理由はアクセス権・認証であり、追加の文面確認や投稿許可を要求しない。上流PR URLと作成後の状態は、実際の作成後にこの文書とIssue #105へ追記する。#105はopenを維持し、#102を開始しない。
