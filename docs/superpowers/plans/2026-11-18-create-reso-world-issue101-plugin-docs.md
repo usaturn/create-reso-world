@@ -248,4 +248,17 @@ Expected: どちらも終了コード 0
 
 ## 完了
 
-（実行後に、使ったコミット・コマンド・結果・所要時間を書く）
+- コード: `usaturn/resoloop` の `feat/create-reso-world-issue-101-plugin-docs`、base `cae50506`、検証した HEAD `5b1a179c419c21e77198a0e619b4bf557ef4c5bd`（作業ツリーは clean）
+- コミット: Task 1 `3689b096`、Task 2 `bdc2730e`（2回目の依頼）と修正 `99ad929a`、Task 3 `db8a8511` と修正 `eb7aa353`、Task 4 `978cfbdd`、最終レビューの修正 `5b1a179c`
+- 実行方式: Task 1〜4 と各修正を agent-runner の `claude-code_sonnet_xhigh`（観測したモデル `claude-sonnet-5-5`）に1つずつ依頼し、Task のレビューと最終のブランチ全体のレビューは司令塔のサブエージェント（Task 1・4 と再レビューは sonnet、Task 2・3 と最終レビューは opus）が行った。Task 5 は司令塔が行った
+- 依頼の回数と所要時間（runner の elapsed）: Task 1 は1回（187 秒）。Task 2 は3回で、1回目は空値ガードの無い `rm` が承認待ちになり `failed`（1075 秒、取り込まない）、利用者の決定で同じ担当に依頼し直した2回目（1179 秒）と、レビューの修正（485 秒）。Task 3 は2回（747 秒と修正 61 秒）。Task 4 は1回（114 秒）。最終レビューの修正は1回（446 秒）
+- Task 5 の検証（司令塔、HEAD `5b1a179c`、Linux の本 Dev Container）:
+  - `dotnet build ResoLoop.slnx`: 終了コード 0、警告 0
+  - `dotnet test ResoLoop.slnx --no-build`: 終了コード 0（RLoop.Tests 592 件、RLoop.IntegrationTests 22 件、失敗 0）
+  - 文書の bash ブロックを書かれた順に実行し、続く出力ブロックと置き換えの規則で照合した（プロジェクトは `作業 ワールド`）。英語版・日本語版とも bash 18、出力 25 がすべて一致
+  - 追加の照合 15 項目がすべて成功: `git init` したルートのローカル導入、ResoLoop の checkout の下位ディレクトリの拒否（`PLUGIN_SOURCE_INVALID`）、リンク経由の導入元と実体のパスの記録、`file://` と `--ref main` の導入で `plugin install --json` と `install.json` の `commit` が一時リポジトリの SHA と一致、`plugin list --json` にコミットが出ない、`missing-tool` を足した一時的な導入元の doctor（`plugin:hello:uv` は pass、`plugin:hello:missing-tool` は fail、終了コード 0、`ready: false`）、削除後に `.resoloop/plugins/hello` が無い
+  - 英日のコードブロックは、手で書いた構成図2つの注釈を除いて同一。見出し 34 個の順と階層が一致
+  - 差分は所有範囲の 12 ファイルだけで、README 3種と `SKILL.md` は追加と、最終レビューで直した節の中の書き換えだけ。上流 main が変えた行には触れていない
+  - 日本語（`docs/PLUGINS.ja.md`、README_JA.md と README-DETAILS.md の節、この Spec・Plan）は yomiyasu の検査ツールで意味が変わるおそれのある箇所を確かめた
+- 実行していないこと: Windows での実行（PR の Windows CI は CI の結果として別に扱う）、Resonite・Blender
+- 所要時間: 着手（2026-11-18 13:40Z ごろ）から Task 5 の完了（16:25Z ごろ）まで約 2 時間 45 分。うち利用者の確認待ち 2 回（base の指定、Task 2 の失敗の後の進め方）。準備・Spec・設計レビュー・Spec レビュー・Plan に約 35 分、Task 1〜4 とレビューに約 105 分、Task 5 と最終レビュー・修正に約 25 分
