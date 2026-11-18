@@ -59,3 +59,17 @@
   5. Linux で `dotnet build ResoLoop.slnx` と `dotnet test ResoLoop.slnx --no-build` が成功する。
   6. Windows CI が成功し、検証された merge commit の tree が最終候補の tree と一致する。
   7. fork の `feat/plugin-system` の先端が最終候補の SHA と一致し、Issue #33 に結果を記録して close している。
+
+## 実行記録（2026-11-19）
+
+- 作業は完了した（状態は `draft` のまま。内容の承認は記録していない）。実行方式は inline（司令塔が直接実行）
+- 提出用ブランチ: `usaturn/resoloop:feat/plugin-system` @ `c72deaf0e13f9a423d3bd4ef0afef79ee4a6cb9b`（tree `9d1fa089f93de4e0c74afb63da64a83ca439b6a6`）。https://github.com/usaturn/resoloop/tree/feat/plugin-system
+- rebase: `git rebase --onto 32309ca a7be2dd` は競合なしで 35 コミットを載せ替えた。rebase 直後の tree は `43d17f10e8adac2201a8879f366995c26357bf1c` で、`SRC_SHA` と `UPSTREAM_SHA` の 3-way merge の tree と一致した。件名末尾の内部 Issue 参照を除いた後も tree は同じ
+- 追加コミット 3 件: `b12debf`（README 3 種と英日ガイドの fork 向け記述）、`34754fe`（コードコメント 2 行）、`c72deaf`（テストヘルパー 2 箇所。`/proc/<pid>/stat` の読み取り中にプロセスが回収されると ESRCH の `IOException` になり、`PluginCommandTests.NormalExitStopsLeftoverDescendants` が 1 回失敗した。本体と同じ ESRCH の扱いを足した。単独の再実行 3 回は修正前も成功しており、rebase に起因しない既存の不安定さである）
+- 検索: 共通検索範囲の `git grep -nE "create-reso-world|usaturn|feat/plugin-v2"` は一致なし（終了コード 1）。README の絶対 URL のパスと、ガイドの相対リンクの先は最終候補の tree に存在する
+- 差分: `UPSTREAM_SHA..c72deaf` は 53 ファイル（追加 44、変更 9）で、プラグイン機構・文書・最小例・テストだけ。fork `main` 固有のコミット（`ff77b91`）との共通部分は 0 件
+- Linux: `c72deaf` で `dotnet build ResoLoop.slnx`（警告 0・エラー 0）と `dotnet test ResoLoop.slnx --no-build`（RLoop.Tests 639 件・RLoop.IntegrationTests 24 件、失敗 0）
+- Windows: 検証用 PR https://github.com/usaturn/resoloop/pull/34 （base `ci/issue-33-upstream-base` = `UPSTREAM_SHA`。マージせず close）の run https://github.com/usaturn/resoloop/actions/runs/44378694937 が成功。checkout された merge commit `ea338405917e893dfe5b00ed78c7e65eb9ec8a6b` の tree は最終候補の tree と一致
+- 完了時のリモート: `feat/plugin-v2` = `95d115a…`、fork `main` = `ff77b91…`（どちらも着手時のまま）、上流 `main` = `32309ca…`（2026-11-18T19:20Z の時点で前進なし）
+- 未実施: Resonite・Blender を使う実機検証（対象外）。残したもの: 検証用ブランチ `ci/issue-33-upstream-base`（公開済みの上流コミットを指すだけ。不要になったら削除してよい）
+- 能動時間: 約 60 分（準備・Issue 更新・文書 20 分、rebase と文書修正 10 分、Linux の検証と修正 15 分、公開と Windows CI 10 分、記録 5 分）
