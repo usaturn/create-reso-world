@@ -124,11 +124,19 @@ typeset -a cc_launcher_unsets=(
     -u ANTHROPIC_BETAS
 )
 
+# effort の渡し方（ccdd / ccddg / ccdgo / ccdol、claude-ollama-exec も同じ考え）。
+# DeepSeek V4.1 Flash だけを --settings の modelSettings.<ID>.maxEffortLevel で high に
+# 抑え、他のモデルは --effort max のままにする（#467）。後ろの --effort は上限以下で効き、
+# 後ろの --settings で上限を外せる。CLAUDE_CODE_EFFORT_LEVEL は --effort より優先されるので、
+# env -u で親の値を外す（ランチャーは代入しない）。tier がすべて DeepSeek の
+# ccdol・claude-ollama-exec は上限ではなく --effort high を既定にする。
+
 function claude-deepinfra ccdd () {
   local fable=zai-org/GLM-5.3
   local opus=deepseek-ai/DeepSeek-V4.1-Flash
   local sonnet=deepseek-ai/DeepSeek-V4-Flash-0731
   local haiku=openai/gpt-oss-20b
+  local effort_cap="{\"modelSettings\":{\"${opus}\":{\"maxEffortLevel\":\"high\"}}}"
   local -a opts
   [[ $funcstack[1] == ccdd ]] && opts=(--dangerously-skip-permissions)
   # Claude Code は ANTHROPIC_AUTH_TOKEN を trim して空なら未設定とみなし、保存済みの claude.ai の
@@ -140,7 +148,7 @@ function claude-deepinfra ccdd () {
     return 1
   fi
 
-  env "${cc_launcher_unsets[@]}" \
+  env "${cc_launcher_unsets[@]}" -u CLAUDE_CODE_EFFORT_LEVEL \
     ANTHROPIC_BASE_URL="https://api.deepinfra.com/anthropic" \
     ANTHROPIC_AUTH_TOKEN="${DEEPINFRA_TOKEN:?DEEPINFRA_TOKEN is not set}" \
     ANTHROPIC_DEFAULT_FABLE_MODEL=${fable} \
@@ -148,9 +156,8 @@ function claude-deepinfra ccdd () {
     ANTHROPIC_DEFAULT_SONNET_MODEL=${sonnet} \
     ANTHROPIC_DEFAULT_HAIKU_MODEL=${haiku} \
     ENABLE_CLAUDEAI_MCP_SERVERS=false \
-    CLAUDE_CODE_EFFORT_LEVEL=max \
     CLAUDE_CODE_MAX_OUTPUT_TOKENS=65536 \
-    claude --model opus "${opts[@]}" "$@"
+    claude --effort max --settings "${effort_cap}" --model opus "${opts[@]}" "$@"
 }
 
 function claude-deepinfra-glm ccddg () {
@@ -158,6 +165,7 @@ function claude-deepinfra-glm ccddg () {
   local opus=zai-org/GLM-5.3-Flash
   local sonnet=deepseek-ai/DeepSeek-V4-Flash-0731
   local haiku=openai/gpt-oss-20b
+  local effort_cap="{\"modelSettings\":{\"${fable}\":{\"maxEffortLevel\":\"high\"}}}"
   local -a opts
   [[ $funcstack[1] == ccddg ]] && opts=(--dangerously-skip-permissions)
   # Claude Code は ANTHROPIC_AUTH_TOKEN を trim して空なら未設定とみなし、保存済みの claude.ai の
@@ -169,7 +177,7 @@ function claude-deepinfra-glm ccddg () {
     return 1
   fi
 
-  env "${cc_launcher_unsets[@]}" \
+  env "${cc_launcher_unsets[@]}" -u CLAUDE_CODE_EFFORT_LEVEL \
     ANTHROPIC_BASE_URL="https://api.deepinfra.com/anthropic" \
     ANTHROPIC_AUTH_TOKEN="${DEEPINFRA_TOKEN:?DEEPINFRA_TOKEN is not set}" \
     ANTHROPIC_DEFAULT_FABLE_MODEL=${fable} \
@@ -177,9 +185,8 @@ function claude-deepinfra-glm ccddg () {
     ANTHROPIC_DEFAULT_SONNET_MODEL=${sonnet} \
     ANTHROPIC_DEFAULT_HAIKU_MODEL=${haiku} \
     ENABLE_CLAUDEAI_MCP_SERVERS=false \
-    CLAUDE_CODE_EFFORT_LEVEL=max \
     CLAUDE_CODE_MAX_OUTPUT_TOKENS=65536 \
-    claude --model opus "${opts[@]}" "$@"
+    claude --effort max --settings "${effort_cap}" --model opus "${opts[@]}" "$@"
 }
 
 # Ollama Cloud の DeepSeek-V4.1-Flash-1017 で Claude Code を起動する（#340、移植元 agent-workspace#852）。
@@ -198,7 +205,7 @@ function claude-ollama ccdol () {
     return 1
   fi
 
-  env "${cc_launcher_unsets[@]}" \
+  env "${cc_launcher_unsets[@]}" -u CLAUDE_CODE_EFFORT_LEVEL \
     ANTHROPIC_BASE_URL="https://ollama.com" \
     ANTHROPIC_AUTH_TOKEN="$OLLAMA_API_KEY" \
     ANTHROPIC_DEFAULT_FABLE_MODEL="$model" \
@@ -206,9 +213,8 @@ function claude-ollama ccdol () {
     ANTHROPIC_DEFAULT_SONNET_MODEL="$model" \
     ANTHROPIC_DEFAULT_HAIKU_MODEL="$model" \
     ENABLE_CLAUDEAI_MCP_SERVERS=false \
-    CLAUDE_CODE_EFFORT_LEVEL=max \
     CLAUDE_CODE_MAX_OUTPUT_TOKENS=65536 \
-    claude --model opus "${opts[@]}" "$@"
+    claude --effort high --model opus "${opts[@]}" "$@"
 }
 
 # OpenCode Go のモデルで Claude Code を起動する（#368、移植元 agent-workspace#868）。
@@ -238,10 +244,11 @@ function claude-opencode-go ccdgo () {
   local opus='deepseek-v4.1-flash[1m]'
   local sonnet='muse-spark-1.3-contributor[1m]'
   local haiku='glm-5.3-flash[1m]'
+  local effort_cap="{\"modelSettings\":{\"${opus%\[1m\]}\":{\"maxEffortLevel\":\"high\"}}}"
   local -a opts
   [[ $funcstack[1] == ccdgo ]] && opts=(--dangerously-skip-permissions)
 
-  env "${cc_launcher_unsets[@]}" \
+  env "${cc_launcher_unsets[@]}" -u CLAUDE_CODE_EFFORT_LEVEL \
     ANTHROPIC_BASE_URL="https://opencode.ai/zen/go" \
     ANTHROPIC_API_KEY="${opencode_go_key}" \
     ANTHROPIC_AUTH_TOKEN="${opencode_go_key}" \
@@ -250,9 +257,8 @@ function claude-opencode-go ccdgo () {
     ANTHROPIC_DEFAULT_SONNET_MODEL="${sonnet}" \
     ANTHROPIC_DEFAULT_HAIKU_MODEL="${haiku}" \
     ENABLE_CLAUDEAI_MCP_SERVERS=false \
-    CLAUDE_CODE_EFFORT_LEVEL=max \
     CLAUDE_CODE_MAX_OUTPUT_TOKENS=65536 \
-    claude --model opus "${opts[@]}" "$@"
+    claude --effort max --settings "${effort_cap}" --model opus "${opts[@]}" "$@"
 }
 
 # Alibaba Cloud Model Studio の Token Plan（Qwen）で Claude Code を起動する（#397、移植元 usaturn/agent-workspace#923）。

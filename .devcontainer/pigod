@@ -51,11 +51,13 @@ fi
 # (https://opencode.ai/zen/go/v1) 付きで存在するため、pi-models.json への
 # 定義追加は不要。--provider の指定だけで OpenCode Go のエンドポイントに解決される。
 #
-# --thinking max はこのエンドポイントで受理される。pi は
-# thinkingLevelMap の max -> "max" をそのまま reasoning_effort として送る。
+# --thinking high はこのエンドポイントで受理される。pi は
+# thinkingLevelMap に対応する値が無い high もそのまま reasoning_effort として
+# 送る。runner の `_max` は後ろに --thinking max を付けるので、Pi は後ろの値を
+# 使う。
 #
 pi_superagents_exec pigod \
     --provider opencode-go \
     --model deepseek-v4.1-flash \
-    --thinking max \
+    --thinking high \
     "$@" || exit 1

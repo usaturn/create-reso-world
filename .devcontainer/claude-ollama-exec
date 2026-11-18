@@ -5,11 +5,15 @@
 # export した対話シェルから起動したときに、外した変数が子の claude へ再注入される。
 #
 # Ollama Cloud の DeepSeek-V4.1-Flash-1017 で Claude Code を起動する（#408、移植元
-# usaturn/agent-workspace#860）。呼び出し元は agent-runner の claude-code_ollama_opus_max と
-# claude-code_ollama_sonnet_max（.devcontainer/agent-runner.toml）である。
+# usaturn/agent-workspace#860）。呼び出し元は agent-runner の claude-code_ollama_opus_high と
+# claude-code_ollama_sonnet_high（.devcontainer/agent-runner.toml）である。
 # モデルの対応と接続先は zshrc.txt の claude-ollama / ccdol と揃える（4 つの tier すべて
 # deepseek-v4.1-flash:1017[1m]）。ccdol はこの exec を使わないので、片方の対応を変えるときは
 # もう片方も揃える。
+#
+# DeepSeek V4.1 Flash の既定 effort は high（#467）。引数の先頭に --effort high を付けるので、
+# 呼び出し側が後ろに渡す --effort が優先される。CLAUDE_CODE_EFFORT_LEVEL は --effort より
+# 優先されるため、親に残った値が既定を上書きしないよう、下の exec env の -u で外す。
 #
 # runner 経由では子の環境は agent.env の名前だけなので、親の認証情報は元から無い。
 # 通常のシェルから直接実行したときも、親の認証情報が ollama.com へ渡らないよう、
@@ -40,7 +44,8 @@ fi
 # ANTHROPIC_API_KEY は渡さない。ccdol が Bearer の ANTHROPIC_AUTH_TOKEN だけを渡すのと揃える。
 # -u の名前は、zshrc.txt の cc_launcher_unsets のうちこのスクリプトが自分で設定しないものすべて
 # （自分で設定する ANTHROPIC_AUTH_TOKEN は除く。OLLAMA_API_KEY は cc_launcher_unsets にあり、
-# ここで外す）。一覧は claude-alibaba-exec と揃える。zshrc.txt の定義は変えない。
+# ここで外す）に、CLAUDE_CODE_EFFORT_LEVEL を足したもの。CLAUDE_CODE_EFFORT_LEVEL を除く一覧は
+# claude-alibaba-exec と揃える。zshrc.txt の定義は変えない。
 exec env \
     -u ANTHROPIC_API_KEY \
     -u DEEPINFRA_TOKEN \
@@ -88,6 +93,7 @@ exec env \
     -u CLAUDE_CODE_AUTO_MODE_MODEL \
     -u CLAUDE_CODE_BG_CLASSIFIER_MODEL \
     -u ANTHROPIC_BETAS \
+    -u CLAUDE_CODE_EFFORT_LEVEL \
     ANTHROPIC_BASE_URL=https://ollama.com \
     ANTHROPIC_AUTH_TOKEN="$key" \
     ANTHROPIC_DEFAULT_FABLE_MODEL="$fable" \
@@ -95,6 +101,5 @@ exec env \
     ANTHROPIC_DEFAULT_SONNET_MODEL="$sonnet" \
     ANTHROPIC_DEFAULT_HAIKU_MODEL="$haiku" \
     ENABLE_CLAUDEAI_MCP_SERVERS=false \
-    CLAUDE_CODE_EFFORT_LEVEL=max \
     CLAUDE_CODE_MAX_OUTPUT_TOKENS=65536 \
-    claude "$@"
+    claude --effort high "$@"

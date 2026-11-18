@@ -2,9 +2,9 @@
   "superagents": {
     "extensions": ["~/.pi/agent/extensions/subagent.d/pi-superagents-model-guard.ts"],
     "modelTiers": {
-      "cheap": { "model": "opencode-go/deepseek-v4.1-flash", "thinking": "max" },
-      "balanced": { "model": "openai-codex/gpt-6.1-sol", "thinking": "xhigh" },
-      "max": { "model": "openai-codex/gpt-6.1-sol", "thinking": "max" }
+      "cheap": { "model": "opencode-go/deepseek-v4.1-flash", "thinking": "high" },
+      "balanced": { "model": "openai-codex/gpt-6.2-sol", "thinking": "xhigh" },
+      "max": { "model": "openai-codex/gpt-6.2-sol", "thinking": "max" }
     }
   }
 }

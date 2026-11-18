@@ -28,6 +28,6 @@ pi_openai_codex_require_oauth || exit 1
 
 pi_superagents_exec piga \
     --provider openai-codex \
-    --model gpt-6-astra \
+    --model gpt-6.2-astra \
     --thinking xhigh \
     "$@" || exit 1

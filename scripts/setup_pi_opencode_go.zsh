@@ -25,7 +25,6 @@ set -euo pipefail
 
 readonly PROVIDER="opencode-go"
 readonly MODEL="muse-spark-1.3-contributor"
-readonly THINKING="max"
 
 # Keep path-owned trailing newlines; remove only the CLI delimiter and sentinel.
 PI_DIR="$(python3 "${0:A:h}/../.devcontainer/pi-provider-setup.py" --agent-dir && printf .)"
@@ -52,6 +51,7 @@ readonly MODELS_SOURCE="${0:A:h}/../.devcontainer/pi-models.json"
 #
 readonly LAUNCHER_NAMES=(pigo pigod)
 readonly LAUNCHER_MODELS=("${MODEL}" "deepseek-v4.1-flash")
+readonly LAUNCHER_THINKING=(max high)
 readonly LAUNCHER_DIR="${0:A:h}/../.devcontainer"
 
 readonly BIN_DIR="${HOME}/.local/bin"
@@ -296,13 +296,13 @@ print " Pi + OpenCode Go setup complete"
 print "========================================"
 print
 print "Provider : ${PROVIDER}"
-print "Thinking : ${THINKING}"
+print "Thinking : ${LAUNCHER_THINKING[*]}"
 print "Auth     : ${AUTH_JSON}"
 print "Models   : ${MODELS_JSON}"
 print
 print "Launchers:"
 for _i in {1..${#LAUNCHER_NAMES}}; do
-    print "  ${BIN_DIR}/${LAUNCHER_NAMES[_i]}  (--model ${LAUNCHER_MODELS[_i]})"
+    print "  ${BIN_DIR}/${LAUNCHER_NAMES[_i]}  (--model ${LAUNCHER_MODELS[_i]}, --thinking ${LAUNCHER_THINKING[_i]})"
 done
 print
 print "Each launcher starts Pi via the pi-superagents 'bwrap' wrapper,"
@@ -318,7 +318,7 @@ print
 print "  pi \\"
 print "    --provider ${PROVIDER} \\"
 print "    --model <the model shown above> \\"
-print "    --thinking ${THINKING}"
+print "    --thinking <the value shown above>"
 print
 print "Run:"
 print
