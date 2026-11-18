@@ -12,11 +12,18 @@ effort = "xhigh"
 env = ["HOME", "PATH"]
 
 # Devin の SWE-2 は tier（medium・high・max）を --model の UID で選ぶ。tier は effort の軸なので名の effort の段に置く。
-# 2 つは同じ model_key で同じモデルとして扱う（同じ役割に並べられない）。
+# 3 つは同じ model_key で同じモデルとして扱う（同じ役割に並べられない）。
 [agents.devin_swe2_max]
 runtime = "devin"
 command = ["devin"]
 model = "swe-2-max"
+model_key = "swe-2"
+env = ["HOME", "PATH"]
+
+[agents.devin_swe2_high]
+runtime = "devin"
+command = ["devin"]
+model = "swe-2-high"
 model_key = "swe-2"
 env = ["HOME", "PATH"]
 
@@ -26,6 +33,15 @@ command = ["devin"]
 model = "swe-2-medium"
 model_key = "swe-2"
 env = ["HOME", "PATH"]
+
+[agents.pi_commandcode_deepseek4-flash_high]
+runtime = "pi"
+command = ["piccd"]
+model = "deepseek/deepseek-v4.1-flash"
+model_key = "deepseek-v4.1-flash"
+provider = "commandcode"
+effort = "high"
+env = ["HOME", "PATH", "COMMANDCODE_API_KEY"]
 
 [agents.pi_commandcode_deepseek4-flash_max]
 runtime = "pi"
@@ -39,7 +55,7 @@ env = ["HOME", "PATH", "COMMANDCODE_API_KEY"]
 [agents.pi_openai-codex_gpt6-sol_xhigh]
 runtime = "pi"
 command = ["pigs"]
-model = "gpt-6.1-sol"
+model = "gpt-6.2-sol"
 provider = "openai-codex"
 effort = "xhigh"
 env = ["HOME", "PATH", "OPENCODE_API_KEY"]
@@ -58,6 +74,15 @@ command = ["pi"]
 model = "glm-5.3-flash"
 provider = "opencode-go"
 effort = "max"
+env = ["HOME", "PATH", "OPENCODE_API_KEY"]
+
+[agents.pi_opencode-go_deepseek4-flash_high]
+runtime = "pi"
+command = ["pigod"]
+model = "deepseek-v4.1-flash"
+model_key = "deepseek-v4.1-flash"
+provider = "opencode-go"
+effort = "high"
 env = ["HOME", "PATH", "OPENCODE_API_KEY"]
 
 [agents.pi_opencode-go_deepseek4-flash_max]
@@ -88,7 +113,7 @@ env = ["HOME", "PATH"]
 [agents.pi_openai-codex_gpt6-astra_xhigh]
 runtime = "pi"
 command = ["piga"]
-model = "gpt-6-astra"
+model = "gpt-6.2-astra"
 provider = "openai-codex"
 effort = "xhigh"
 env = ["HOME", "PATH"]
@@ -108,27 +133,28 @@ env = ["HOME", "PATH"]
 # OLLAMA_API_KEY が補われる。それ以外のランチャーのセッションや with_keys.py を通さない直接起動では
 # key が届かず、claude-ollama-exec の key ガードで終了コード 1 で止まる。
 # 同一モデル比較（duplicate_model）: model_key = "deepseek-v4.1-flash" により、既存の DeepSeek V4.1 Flash
-# 系 3 agent（pi_commandcode_deepseek4-flash_max・pi_opencode-go_deepseek4-flash_max・
+# 系 5 agent（pi_commandcode_deepseek4-flash_high・pi_commandcode_deepseek4-flash_max・
+# pi_opencode-go_deepseek4-flash_high・pi_opencode-go_deepseek4-flash_max・
 # pi_deepinfra_deepseek4-flash_high）および Ollama の 2 agent 同士は同じ役割に並べられない。加えて
 # opus 側は claude-code_opus_xhigh・claude-code_alibaba_opus_max と、sonnet 側は
 # claude-code_sonnet_xhigh と model が一致するため同じ役割に並べられない。将来 tier ごとに別モデルへ
 # 変えた場合は model_key も別値にすること。
-[agents.claude-code_ollama_opus_max]
+[agents.claude-code_ollama_opus_high]
 runtime = "claude-code"
 command = ["claude-ollama-exec"]
 model = "opus"
 model_key = "deepseek-v4.1-flash"
 provider = "ollama"
-effort = "max"
+effort = "high"
 env = ["HOME", "PATH", "OLLAMA_API_KEY"]
 
-[agents.claude-code_ollama_sonnet_max]
+[agents.claude-code_ollama_sonnet_high]
 runtime = "claude-code"
 command = ["claude-ollama-exec"]
 model = "sonnet"
 model_key = "deepseek-v4.1-flash"
 provider = "ollama"
-effort = "max"
+effort = "high"
 env = ["HOME", "PATH", "OLLAMA_API_KEY"]
 
 # claude-alibaba-exec（.devcontainer/claude-alibaba-exec）で Alibaba Cloud Model Studio の
@@ -178,6 +204,7 @@ provider = "google-vertex"
 effort = "high"
 env = ["HOME", "PATH", "GOOGLE_APPLICATION_CREDENTIALS", "GOOGLE_CLOUD_PROJECT", "GCLOUD_PROJECT", "GOOGLE_CLOUD_LOCATION"]
 
+# DeepInfra の reasoning_effort の上限は high で、Pi は --thinking max を high に丸めるため _max は置かない（README の「DeepSeek V4.1 Flash の推論強度」）。
 [agents.pi_deepinfra_deepseek4-flash_high]
 runtime = "pi"
 command = ["pidid"]
@@ -187,11 +214,11 @@ provider = "deepinfra"
 effort = "high"
 env = ["HOME", "PATH", "DEEPINFRA_TOKEN"]
 
-# codex exec --json。実測既定モデルは gpt-6.1-sol（openai）。
+# codex exec --json。model は runner が -m で渡す。Codex CLI のモデル一覧に gpt-6.2-sol がある（2026-11-18）。
 [agents.codex_openai_gpt6-sol_default]
 runtime = "codex"
 command = ["codex", "exec"]
-model = "gpt-6.1-sol"
+model = "gpt-6.2-sol"
 provider = "openai"
 approval = "noninteractive"
 skill_sources = [".agents/skills", ".codex/skills"]
@@ -272,7 +299,7 @@ after_run = [[
 # 下の 3 人は指定が無いときの既定値で、性能の順位ではない。
 # Command Code GOAT は契約終了のため既定から外す（#337）。
 [workflows.review.assignments.inspect]
-agents = ["claude-code_opus_xhigh", "devin_swe2_max", "pi_opencode-go_deepseek4-flash_max"]
+agents = ["claude-code_opus_xhigh", "devin_swe2_max", "pi_opencode-go_deepseek4-flash_high"]
 
 # review-fix-planning の run_roles.py が使う担当（usaturn/create-reso-world#116 のボードの D-13）。self は司令塔が自分で実行する。
 # self-review・fix-check には codex の担当を割り当てられない（run_roles.py が起動の前に拒否する）。
