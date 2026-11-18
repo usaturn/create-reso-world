@@ -77,11 +77,14 @@ create-reso-world と agent-workspace は同じ agent 名・Pi ラッパー名�
 - **D8 GPT のモデル**: Sol を `gpt-6.2-sol`、Astra を `gpt-6.2-astra` にする。対象は runner の `pi_openai-codex_gpt6-sol_xhigh`・`pi_openai-codex_gpt6-astra_xhigh`・`codex_openai_gpt6-sol_default`、親の `pigs`・`piga`、子の 7 枠。agent 名（`gpt6-sol`・`gpt6-astra`）、Terra（`gpt-6.1-terra`）・Luna（`gpt-6-luna`）、`thinking` は変えない。runner のコメントの「実測既定モデルは gpt-6.1-sol」は、参照元に合わせて「model は runner が -m で渡す。Codex CLI のモデル一覧に gpt-6.2-sol がある（2026-11-18）」にする。/ 理由: Issue の第 2 項。/ 利用者の決定。
 - **D9 Devin**: `devin_swe2_high`（`model = "swe-2-high"`、`model_key = "swe-2"`、`runtime = "devin"`、`command = ["devin"]`、`env = ["HOME", "PATH"]`）を `devin_swe2_max` と `devin_swe2_medium` の間に足し、コメントを「3 つは同じ model_key」に直す。既定割当は変えない。/ 理由: Issue の第 3 項。/ 利用者の決定。
 - **D10 複数モデルの Claude Code ランチャー**: `ccdd`・`ccddg`・`ccdgo` は `CLAUDE_CODE_EFFORT_LEVEL=max` をやめ、`env` に `-u CLAUDE_CODE_EFFORT_LEVEL` を足し、`claude --effort max --settings '{"modelSettings":{"<DeepSeek V4.1 Flash の ID>":{"maxEffortLevel":"high"}}}' --model opus ...` で起動する。ID は `ccdd` が opus の `deepseek-ai/DeepSeek-V4.1-Flash`、`ccddg` が fable の `deepseek-ai/DeepSeek-V4.1-Flash`、`ccdgo` が opus の `deepseek-v4.1-flash`（`[1m]` を外す）。`--settings` の JSON はランチャーの局所変数から組み立て、モデル名を二重に書かない。/ 別案: (a) `CLAUDE_CODE_EFFORT_LEVEL=high` にする（他モデルも `high` になり、DeepSeek V4 Flash 0731 などの一括変更に当たる）、(b) 設定の `modelSettings.<ID>.effortLevel = "high"` で既定だけを変える（他モデルを `max` にする手段が `--effort max` か環境変数しかなく、どちらも DeepSeek の既定を上書きする。`effortLevel` は `max` を持てない）。/ 理由: 他モデルを `max` に保ちながら DeepSeek だけを `high` にできる唯一の方法で、参照元と同じ。上限は利用者が後ろの `--settings` で外せ、後ろの `--effort` で上限以下の値も選べる（確認した前提）ので、利用者の明示的な上書きを禁止しない。/ Issue が方法を委任。
-- **D11 Ollama の Claude Code**: `ccdol` と `claude-ollama-exec` は 4 つの tier すべてが DeepSeek V4.1 Flash 1017 なので、`CLAUDE_CODE_EFFORT_LEVEL=max` をやめ、`env` に `-u CLAUDE_CODE_EFFORT_LEVEL` を足し、`claude --effort high ... "$@"` を既定にする（後ろの `--effort` が効く）。`ccdol` は `claude-ollama-exec` を呼ばない今の構成を保つ（参照元は呼ぶが、モデル・effort だけが Issue の対象で、実装方式の置き換えは要らない）。`claude-ollama-exec` の親の認証情報を外す `-u` の一覧は変えない。/ 別案: `CLAUDE_CODE_EFFORT_LEVEL=high`（後ろの `--effort` が効かなくなり、利用者の明示的な上書きを禁止する）。/ 理由: 参照元と同じで、確認した前提のとおり親の環境変数を外さないと `--effort` が負ける。/ Issue が方法を委任。
+- **D11 Ollama の Claude Code**: `ccdol` と `claude-ollama-exec` は 4 つの tier すべてが DeepSeek V4.1 Flash 1017 なので、`CLAUDE_CODE_EFFORT_LEVEL=max` をやめ、`env` に `-u CLAUDE_CODE_EFFORT_LEVEL` を足し、`claude --effort high ... "$@"` を既定にする（後ろの `--effort` が効く）。`ccdol` は `claude-ollama-exec` を呼ばない今の構成を保つ（参照元は呼ぶが、モデル・effort だけが Issue の対象で、実装方式の置き換えは要らない）。`claude-ollama-exec` の `exec env` の `-u` は、親の認証情報を外す既存の項目を変えず、`-u CLAUDE_CODE_EFFORT_LEVEL` を 1 つ足す（`ccdol` も同じく足す。Spec レビュー S4 の採用）。/ 別案: `CLAUDE_CODE_EFFORT_LEVEL=high`（後ろの `--effort` が効かなくなり、利用者の明示的な上書きを禁止する）。/ 理由: 参照元と同じで、確認した前提のとおり親の環境変数を外さないと `--effort` が負ける。/ Issue が方法を委任。
 - **D12 Alibaba の Claude Code**: `ccda`・`claude-alibaba-exec` は Qwen なので変えない。/ 理由: 対象外（#407）。
 - **D13 setup の表示**: `scripts/setup_pi_opencode_go.zsh` の共通の `THINKING="max"` を、ランチャーごとの `LAUNCHER_THINKING=(max high)`（`pigo`・`pigod` の順）に分け、完了時の表示に各ランチャーの `--thinking` を出す。`scripts/setup_pi_commandcode_goat.zsh` は `PICCG_THINKING="max"`・`PICCD_THINKING="high"` に分ける。setup がランチャーの本文で検証するのは `--provider`・`--model`・`--models` の値で、`thinking` の値は表示だけに使う（2026-11-18 に確認）。/ 理由: 表示が実際の起動引数とずれると、既存環境の確認を誤らせる。参照元と同じ。/ 委任。
 - **D14 README**: `.devcontainer/README.md` の現行の値を述べる箇所（下の「変更の内容」の README の項）を新しい値に直し、新しい節「agent-workspace の現行構成との同期（#467）」に、DeepSeek の推論強度・`max` の agent・DeepInfra に `_max` を置かない理由・Claude Code の上限と外し方・Pi で `/model` を切り替えたときの thinking・既存環境の更新・個人設定の確認・参照元との残す差を書く。#305・#337・#341 などの当時の変更記録の表と、移植元・実機の観測の記録は書き換えない。/ 理由: Issue の受け入れ条件（意図的な除外と既存環境の反映手順が分かる）。/ 委任。
-- **D15 テスト**: 新しい恒久テストを足さない。/ 別案: (a) ラッパーの既定 `--thinking` が runner の指定に勝たないことのテスト、(b) Claude Code のランチャーが親の `CLAUDE_CODE_EFFORT_LEVEL` を外すことのテスト。/ 理由: (a) は既存の `test_effective_parent_options_are_checked`（Pi の parser で後ろの値を検査・起動する）と同じ守りで、AGENTS.md の D に当たる。(b) は runner の子に環境変数が渡らず（`env` の allowlist）、直接起動で効くのは利用者が自分で export した値だけで、気付けない損害（S）に当たらない。設定値の写し（モデル名・effort の一覧）は F。値の確認は一時 HOME・偽 CLI・受け口サーバーの実行で行い、結果を PR に書く。既存テストの期待値は、変更で壊れるものがあれば合わせる。/ 委任（AGENTS.md「テストの採用基準」）。
+- **D15 テスト**: S の恒久テストを 2 つだけ足す（Spec レビュー S1・S2 の採用）。設定値の写し（モデル名・effort の一覧）は F なので足さない。既存テストの期待値は、変更で壊れるものがあれば合わせる。
+  - (a) `.devcontainer/test-pi-superagents.bash` に、runner の明示した `--thinking` がラッパーの既定に打ち消されないことのテストを 1 つ足す。代表は `pigod`（`piccd` は同じ形なので D として足さない）。`PI_SUPERAGENTS_LAUNCHER_DRY_RUN=1` で runner と同じ argv（`--print --mode json --no-session --no-approve --provider opencode-go --model deepseek-v4.1-flash --thinking <値>`）を渡し、Pi に渡る引数を Pi 自身の `parseArgs` で解析して、実効の thinking が `max` のときは `max`、`high` のときは `high` になることを確かめる（通る例と、既定と違う値の両方）。壊れると runner の `_max` が黙って `high` で動き、エラーにならない（S）。既存の `test_effective_parent_options_are_checked` は共通ヘルパーを `pidid` で直接呼ぶもので、ラッパーの引数の順序は確かめない
+  - (b) `.devcontainer/test-herdr-migration.bash` に、`ccdd`・`ccddg`・`ccdgo`・`ccdol` と `claude-ollama-exec` が、親シェルで export された `CLAUDE_CODE_EFFORT_LEVEL` を子の `claude` に渡さないことのテストを 1 つ足す（偽の `claude` で子の環境を記録する。`ccda` は自分で `max` を代入するので対象外）。base ではランチャーの代入が親の値を上書きしていたので漏れなかったが、この変更で代入をやめるため、`-u` が抜けると親の値が `--effort` の既定に黙って勝つ（S。回帰の防止）。5 つの入口は別々に `-u` を持つので、1 つのテストで全部を回す
+  - 別案: 恒久テストを足さず、実行の確認だけにする（当初の案）。/ 理由: Spec レビューの指摘のとおり、(a) は既存のテストと守りが違い（D ではない）、(b) は今回の変更で新しくできる漏れの経路で、どちらも壊れてもエラーにならない。/ 委任（AGENTS.md「テストの採用基準」）。値の確認（Claude Code が実際に送る effort、子 Pi の tier）は、一時 HOME・偽 CLI・受け口サーバーの実行で行い、結果を PR に書く
 - **D16 Spec・設計レビュー**: 利用者の指定どおり、設計レビュー（`pi_openai-codex_gpt6-sol_xhigh`）→ Spec レビュー（`pi_opencode-go_deepseek4-flash_max`）の順に行い、builder check は行わない。/ 利用者の指定。
 
 ## 変更の内容
@@ -117,6 +120,10 @@ create-reso-world と agent-workspace は同じ agent 名・Pi ラッパー名�
 
 - `scripts/setup_pi_opencode_go.zsh`・`scripts/setup_pi_commandcode_goat.zsh` の thinking の表示（D13）
 
+### テスト
+
+- `.devcontainer/test-pi-superagents.bash` と `.devcontainer/test-herdr-migration.bash` に D15 の (a)・(b) を 1 つずつ足す。各テストの前のコメントに、防ぐ損害（S）を書く
+
 ### `.devcontainer/README.md`
 
 現行の値を述べる箇所を直す（当時の記録は除く）。
@@ -128,7 +135,7 @@ create-reso-world と agent-workspace は同じ agent 名・Pi ラッパー名�
 - 「モデル定義の管理」の `pigod`・`piccd` の `--thinking` の説明
 - 「ChatGPT Pro の GPT-6 ランチャー」のモデル表と `pi --list-models` の例（`pi update --models` を先に案内する）
 - 「API トークン」の agent 名の表
-- 「pi-superagents のランチャー別 model tier」の表のモデル
+- 「pi-superagents のランチャー別 model tier」の表のモデルと、表の下の thinking の説明（`pigs` の cheap と `pixg` の cheap・balanced を `high` にする。Spec レビュー S3 の採用）
 - 新しい節「agent-workspace の現行構成との同期（#467）」（「Devin の agent 名の変更（#341）」の後）:
   - DeepSeek V4.1 Flash の推論強度: 対象の経路と既定 `high`、Claude Code の上限と外し方、Ollama の既定、Pi で `/model` を切り替えたときは Pi の `modelThinkingLevels` が決めること（リポジトリはユーザ設定を書き換えない）
   - `max` の agent: Pi の 2 経路の `_max` は既定の割当に入らず、`--assign` か個人設定で選ぶ。`_high` と同じ `model_key` なので同じ役割に並べると `duplicate_model`。DeepInfra に `_max` を置かない理由（`pi-models.json` の `thinkingLevelMap` が `max` を `null` にし、Pi は対応する最大の `high` に丸める）
@@ -160,6 +167,7 @@ create-reso-world と agent-workspace は同じ agent 名・Pi ラッパー名�
 ## 検証
 
 - `check`・`list`（上の実入力）と、`duplicate_model` の拒否の 1 件
+- D15 の 2 つのテスト。(b) は変更の前（親の値ではなくランチャーが代入した `max` が子に届く）に失敗し、変更の後に通ることを確かめる。(a) は base でも引数の順序が正しいので通る。ラッパーの `"$@"` を既定の引数より前に動かした一時的な写しで失敗することを確かめる（写しは commit しない）
 - `bash .devcontainer/run-tests.bash .devcontainer/test-pi-superagents.bash .devcontainer/test-herdr-migration.bash`（関連する既存テスト）と、変更が他に影響しないことを確かめるための `bash .devcontainer/run-tests.bash`（全体）
 - `uv run --project . --locked pytest tools/agent_runner -q`（雛形の名前を参照するテストが無いことの確認を兼ねる）
 - `scripts/check-layout.sh`
@@ -185,3 +193,15 @@ create-reso-world と agent-workspace は同じ agent 名・Pi ラッパー名�
 - 結果: `verdict: sound`、`concerns` 0 件、`questions_for_user`・`incomplete` なし。採否に含める指摘は無い
 - `outside_changes`: なし。`unprotected_changes`: `/tmp/pr-review-376-*`・`/tmp/review-fix-planning.*` の 6 つの worktree（他の作業の prunable な登録で、この run は触れていない）
 - レビューと別の訂正（controller）: 「確認した前提」の Pi のカタログの照合の記述を、実装（照合は `pigt`・`pidid` だけ）に合わせて直した。設計の決定は変えていない
+
+### Spec レビュー 1 回目
+
+- helper: `review_spec.py`（外部担当）。`review_dir`: `/workspaces/reso-world/tmp/agents/issue-467.vk70s9bd/2026-11-18-issue-467-agent-workspace-sync-design.spec-review/review-1`、`review_id`: `de3209fff40f453d8d9949b862c286c4`
+- reviewed の Spec の SHA-256: `3e68f784443ec107f3590d581c4413953e11604ad3c7534be5324f8aca05196d`（commit `7281b3f2`）
+- 担当: `requested_agent` と `actual_agent` は `pi_opencode-go_deepseek4-flash_max`（利用者の明示値。`fallback` は無く、使っていない）。identity は provider `opencode-go`・model `deepseek-v4.1-flash`・effort `max`。`elapsed_seconds` は 1127.0
+- `outside_changes`: なし。`unprotected_changes`: 設計レビューと同じ `/tmp` の 6 つの worktree（他の作業のもの）
+- 採否:
+  - S1（important、D15 の Pi の `_max` とラッパーの既定）: 採用。既存のテストは共通ヘルパーを `pidid` で直接呼ぶだけで、ラッパーの引数の順序を確かめない。D15 (a) のテストを足す
+  - S2（important、D15 の Claude Code の親の `CLAUDE_CODE_EFFORT_LEVEL`）: 採用。この変更で代入をやめるので、`-u` が抜けると親の値が黙って漏れる新しい経路になる。D15 (b) のテストを足す
+  - S3（minor、README の tier の thinking の説明）: 採用。D14 の README の項に足した
+  - S4（minor、D11 の `-u` の一覧の書き方）: 採用。既存の項目を変えずに `-u CLAUDE_CODE_EFFORT_LEVEL` を足すと明記した
