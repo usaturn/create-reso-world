@@ -2,7 +2,7 @@
 
 ## 管理
 
-- 状態: draft
+- 状態: completed（PR #468 の修正ループ 1 サイクル目で修正不要と確認。実行許可は上記のまま。内容の承認ではない）
 - Issue: https://github.com/usaturn/create-reso-world/issues/467（統合元 #466 は closed）
 - 実行許可: 利用者が issue-to-pr を明示して起動した（2026-11-18。引数は `#467 --merge --design-review pi_openai-codex_gpt6-sol_xhigh --spec-review pi_opencode-go_deepseek4-flash_max --implement devin_swe2_max --assign implement=devin_swe2_max --assign inspect=devin_swe2_max,pi_openai-codex_gpt6-sol_xhigh`）。推奨案で設計を決め、実装・検証・commit・push・PR 作成と、`--merge` の PR 修正ループ（マージは `finalize.py` だけ）まで進める許可である。内容の承認（`approved`）ではない
 - 作業 base: `usaturn/create-reso-world` `main` `9d5b25af7532083884855744bb0d64d8121ea512`（Issue の基準値と同じ）
@@ -217,3 +217,22 @@ create-reso-world と agent-workspace は同じ agent 名・Pi ラッパー名�
   - S2（minor、README の `duplicate_model` の列挙）: 採用。Pi の `_high`・`_max` の両方を列挙すると README の項に書いた
   - S3（minor、OpenCode Go の effort の表の行）: 採用。README の項に表の行と DeepInfra 側の上限の説明を明記した
   - S4（important、個人設定の上書きの確認）: 採用。値を変えた・足した agent の `[agents.*]` 節を探して雛形と見比べる手順を README の項に足した
+
+## PR 修正ループ（review-fix-planning）
+
+### サイクル 1（HEAD `67be70df506efc73fadd8e3126493472c7c1e0f0`）
+
+- loop run: `d2a876862b654b42b91b4b1cf9cd92ab`。planner: claude-opus-5-5（claude-code）。実行許可は、利用者の `--merge` による issue-to-pr の PR 修正ループ（判断の基準・三択の結論は review-fix-planning のとおり。マージは `finalize.py` だけ）
+- レビュアーの構成（利用者の `--assign inspect=devin_swe2_max,pi_openai-codex_gpt6-sol_xhigh`）:
+
+| レビューファイル | モデル（観測） | ランタイム | レビュー HEAD | このサイクルで再実行 | 結果 | Merge recommendation |
+|---|---|---|---|---|---|---|
+| `SWE-2-Max.md` | SWE-2 Max | devin | `67be70df506e` | はい | 受け付け、指摘 0 件 | Approve |
+| `gpt-6.1-sol.md` | gpt-6.1-sol | pi | `67be70df506e` | はい | 受け付け、Low 1 件（L-1） | Approve |
+
+- 確認済みの一覧: `reviews/usaturn/create-reso-world/#468-feat-issue-467-agent-workspace-sync/verified/67be70df506e.json`（confirmed 1、unverified 0、remaining なし）
+- 分類: 解消済み 0 / 対応する 0 / 対応しない 1
+  - 対応しない `gpt-6.1-sol#L-1@67be70df506e`: README（と Plan）の個人設定の確認 (2) の grep は、引用符・空白の無い `[agents.<名前>]` しか見つけない。隔離 worktree で確かめると、runner が上書きとして受け入れる TOML の別の書き方 7 つ（引用符付き 2 種、空白入り 2 種、字下げ、インライン表、ドット区切りのキー）を見落とす。ただし、個人設定の雛形（`agent-runner-personal.toml`）・README の例・`install_beforehand.bash` が置く設定はすべて引用符・空白の無い形で、agent 名も引用符の要らない文字だけなので、その書き方の個人設定は実在しない。手順のとおりに使って誤った結果になる発生条件に、実在する構成から到達しない（網羅の粗さ）。見直す条件: 引用符付き・ドット区切りのキー・インライン表で agent を上書きする雛形・手順・利用例が現れたとき、または利用者が指定したとき
+- 要件対応: Spec の受け入れ基準（動作環境・実入力・防御範囲）の各条件は、PR 作成前の検証（PR 本文の「検証結果」）で確かめ済み。L-1 は確認手順の網羅の範囲で、受け入れ条件「個人 override の確認方法がある」は、引用符・空白の無い形（実在する構成）で満たす
+- 結論: 2（修正不要）。自己レビューは結論 1 だけで行うので未実施
+- 検証: 同じ HEAD の clean な worktree で記録した必須検証（`bash .devcontainer/run-tests.bash` 27 本 PASS、`bash scripts/check-layout.sh` PASS、`uv run pytest tests/skills .agents/skills .agents/scripts tools -q` 1614 passed、空の個人設定での runner の `check`・`list`）がすべて終了コード 0。base `9d5b25af` は head の祖先なので、merge したツリーでの検証は不要
