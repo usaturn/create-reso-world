@@ -1716,9 +1716,10 @@ Pi の `pi_opencode-go_deepseek4-flash_max`・`pi_commandcode_deepseek4-flash_ma
 `_high` と `_max` は同じ `model_key`（`deepseek-v4.1-flash`）なので、同じ役割に並べると
 `duplicate_model` で拒否される。
 DeepInfra には `_max` を置かない。`pi-models.json` の `deepseek-ai/DeepSeek-V4.1-Flash-1017` の
-`thinkingLevelMap` が `max` を `null` にしており、Pi は対応する最大の `high` に丸めるため、
-`_max` を定義しても `max` では動かない。Claude Code 用にも `max` の agent は追加しない
-（`ccda` の Alibaba は対象外で `max` のまま）。
+`thinkingLevelMap` が `max` を `null` にしており、`pidid` の起動前の検査が `max` を未対応の
+thinking として止めるため、`_max` を定義しても起動しない（素の Pi は対応する最大の `high` に
+丸める）。Claude Code 用にも `max` の agent は追加しない（`ccda` の Alibaba は対象外で
+`max` のまま）。
 
 #### 既存環境の更新
 
@@ -2014,10 +2015,10 @@ OAuth 情報は `~/.pi/agent/auth.json` に保存される。`~/.pi` は Dev Con
 別の model に要求を送る）。必要なら `OPENCODE_API_KEY` を設定して
 `zsh scripts/setup_pi_opencode_go.zsh` を実行する。
 
-Pi 0.99.1 以上が必要（GPT-6.1 Sol・GPT-6 Astra / Luna / Terra はこの版に含まれる）。
-`gpt-6.2-sol`・`gpt-6.2-astra` は Pi の同梱 catalog に無いため、利用前に `pi update --models` で
-保存済み catalog を更新する。`pi --version` を確認し、ログイン後に各モデルが
-`openai-codex` 行にあることを確認する。
+Pi 0.99.1 以上が必要（Luna はこの版に含まれる）。
+`gpt-6.2-sol`・`gpt-6.2-astra`・`gpt-6.1-terra` は Pi の同梱 catalog に無いため、利用前に
+`pi update --models` で保存済み catalog を更新する。`pi --version` を確認し、ログイン後に
+各モデルが `openai-codex` 行にあることを確認する。
 
 ```bash
 pi --version

@@ -204,7 +204,7 @@ provider = "google-vertex"
 effort = "high"
 env = ["HOME", "PATH", "GOOGLE_APPLICATION_CREDENTIALS", "GOOGLE_CLOUD_PROJECT", "GCLOUD_PROJECT", "GOOGLE_CLOUD_LOCATION"]
 
-# DeepInfra の reasoning_effort の上限は high で、Pi は --thinking max を high に丸めるため _max は置かない（README の「DeepSeek V4.1 Flash の推論強度」）。
+# DeepInfra の reasoning_effort の上限は high で、pidid の起動前の検査が --thinking max を未対応の thinking として止めるため _max は置かない（素の Pi は high に丸める。README の「DeepSeek V4.1 Flash の推論強度」）。
 [agents.pi_deepinfra_deepseek4-flash_high]
 runtime = "pi"
 command = ["pidid"]
