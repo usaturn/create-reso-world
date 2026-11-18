@@ -3,8 +3,8 @@
     "extensions": ["~/.pi/agent/extensions/subagent.d/pi-superagents-model-guard.ts"],
     "modelTiers": {
       "cheap": { "model": "openai-codex/gpt-6-luna", "thinking": "xhigh" },
-      "balanced": { "model": "openai-codex/gpt-6.1-sol", "thinking": "xhigh" },
-      "max": { "model": "openai-codex/gpt-6.1-sol", "thinking": "xhigh" }
+      "balanced": { "model": "openai-codex/gpt-6.2-sol", "thinking": "xhigh" },
+      "max": { "model": "openai-codex/gpt-6.2-sol", "thinking": "xhigh" }
     }
   }
 }

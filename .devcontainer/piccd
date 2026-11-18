@@ -148,5 +148,5 @@ pi_superagents_exec piccd \
     --provider commandcode \
     --model deepseek/deepseek-v4.1-flash \
     --models "deepseek/deepseek-v4.1-flash" \
-    --thinking max \
+    --thinking high \
     "$@" || exit 1

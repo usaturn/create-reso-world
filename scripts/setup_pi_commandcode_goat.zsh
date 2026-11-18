@@ -32,7 +32,8 @@ set -euo pipefail
 #
 
 readonly PROVIDER="commandcode"
-readonly THINKING="max"
+readonly PICCG_THINKING="max"
+readonly PICCD_THINKING="high"
 
 #
 # models.json の providers.commandcode に載るべきモデル全部。ランチャごとの
@@ -345,7 +346,7 @@ print " Pi + Command Code GOAT setup complete"
 print "========================================"
 print
 print "Provider : ${PROVIDER}"
-print "Thinking : ${THINKING}"
+print "Thinking : piccg ${PICCG_THINKING} / piccd ${PICCD_THINKING}"
 print "Models   : ${MODELS[*]}"
 print "Models   : ${MODELS_JSON}"
 print "Auth     : COMMANDCODE_API_KEY environment variable"
@@ -363,7 +364,7 @@ print "  pi \\"
 print "    --provider ${PROVIDER} \\"
 print "    --model ${PICCG_DEFAULT_MODEL} \\"
 print "    --models \"${PICCG_MODELS_CSV}\" \\"
-print "    --thinking ${THINKING}"
+print "    --thinking ${PICCG_THINKING}"
 print
 print "piccd passes the following arguments to Pi:"
 print
@@ -371,7 +372,7 @@ print "  pi \\"
 print "    --provider ${PROVIDER} \\"
 print "    --model ${PICCD_DEFAULT_MODEL} \\"
 print "    --models \"${PICCD_MODELS_CSV}\" \\"
-print "    --thinking ${THINKING}"
+print "    --thinking ${PICCD_THINKING}"
 print
 print "/model や Ctrl+P で切り替えできます。"
 print

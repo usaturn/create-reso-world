@@ -332,6 +332,46 @@ test_only_vertex_launchers_overlay_auth() {
     done
 }
 
+# S: runner の _max は --thinking max をラッパーの既定の後ろに付ける。順序が崩れても
+# （runner の引数がラッパーの既定より前に来ても）起動は成功し、runner の _max が
+# 黙って既定の thinking で動く。代表は pigod（piccd は同じ形）。
+# runner と同じ引数を渡し、Pi に渡る argv を Pi 自身の parseArgs で解析して実効の
+# model・thinking を見る。parseArgs は command -v pi の実体から上へたどった
+# dist/cli/args.js（共通ヘルパーの pi_launcher_require_models と同じ探し方）。
+test_runner_thinking_overrides_launcher_default() {
+    local home out requested parsed
+    local -a pi_argv
+    home="$(make_home pigod with-config)"
+    for requested in max high; do
+        out="$(run_launcher "$home" pigod \
+            --print --mode json --no-session --no-approve \
+            --provider opencode-go --model deepseek-v4.1-flash --thinking "$requested")"
+        mapfile -t pi_argv < <(pi_args_of "$out")
+        parsed="$(node --input-type=module - "$(command -v pi)" "${pi_argv[@]}" <<'JS'
+import fs from 'node:fs';
+import path from 'node:path';
+import {pathToFileURL} from 'node:url';
+try {
+    const [pi, ...args] = process.argv.slice(2);
+    let packageDir = path.dirname(fs.realpathSync(pi));
+    while (!fs.existsSync(path.join(packageDir, 'dist/core/model-config.js'))) {
+        const next = path.dirname(packageDir);
+        if (next === packageDir) throw new Error();
+        packageDir = next;
+    }
+    const {parseArgs} = await import(pathToFileURL(path.join(packageDir, 'dist/cli/args.js')).href);
+    const {model, thinking} = parseArgs(args);
+    process.stdout.write(`${model} ${thinking}`);
+} catch {
+    process.exit(1);
+}
+JS
+)" || fail "pi parseArgs must parse the pigod argv (runner --thinking ${requested})"
+        assert_eq "$parsed" "deepseek-v4.1-flash ${requested}" \
+            "runner --thinking ${requested} must override the launcher default"
+    done
+}
+
 # 防ぐ損害: 空白だけの key（全角空白など、ASCII の英数字を 1 文字も含まない値）のまま起動すると、
 # models.json の apiKey の参照は解決できず、誤った認証のまま Pi が進み、エラーで分からない。
 # 値を出力に出さないことも見る。
@@ -818,6 +858,7 @@ test_missing_bwrap_fails_closed
 test_actual_and_dry_run_argv_match
 test_launchers_wrap_pi_with_their_own_config
 test_only_vertex_launchers_overlay_auth
+test_runner_thinking_overrides_launcher_default
 test_piaq_refuses_blank_key
 test_setup_preserves_prior_generation_on_name_collision
 test_setup_if_absent_preserves_user_edits
