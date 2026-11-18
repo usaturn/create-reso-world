@@ -136,3 +136,26 @@ PR の約束と、元の Spec・Plan の条件のうち、今回の修正が関�
 
 - 修正の commit: `348c2884eb678b50ef132d98f3eba0343808a7c3`（push は状況コメントと PR の説明に書く）
 - この Spec は create-reso-world の文書用ブランチ `docs/create-reso-world-issue-101-plugin-docs` に置き、文書専用 PR usaturn/create-reso-world#469 で公開する
+
+## サイクル 2（判断の記録のサイクル 2、現行 HEAD `348c2884`）
+
+- レビュー: PR 修正ループの `cycle-begin` が `reuse` を返した。現行 HEAD `348c2884` には、サイクル 1 の自己レビュー（`claude-opus-5-5-commit-348c2884eb678b50ef132d98f3eba0343808a7c3.md`、claude-opus-5-5・claude-code、指摘 0 件・Approve）があり、レビュアーを起動し直していない。ほかの 4 件（SWE-2-Max・gpt-6.2-sol・deepseek-v4.1-flash・qwen4-max-preview）は `5b1a179c` をレビューした古いレビュアーで、その指摘はサイクル 1 で判断済み
+- 確認済みの一覧: `verified/348c2884eb67.json`（mode cycle）。古いレビュアーの候補 4 件を現行 HEAD の隔離 worktree でビルドした CLI で確かめ直した。gpt-6.2-sol#M-1 は not_reproduced（記述が挙動と一致した）、残り 3 件は confirmed（記述も挙動も変わらない。判断済みの「対応しない」のまま）
+- 判断: D-1（`gpt-6.2-sol#M-1@5b1a179c419c`）を `fix` から `resolved` にした（根拠: `348c2884` の英日の 22 行と 688〜691 行、確認済みの一覧の V-1、fix-check の主張 10 件のうち 9 件が成り立ったこと）。D-2〜D-5 の「対応しない」は新しい根拠が無いので引き継ぐ。新しい指摘は無い
+- 分類: 解消済み 1 / 対応する 0 / 対応しない 0（このサイクルの入力の分。引き継いだ「対応しない」は 4 件）
+
+### 検証（結論 2 の手順 1・2）
+
+検証したツリーは PR head `348c2884eb678b50ef132d98f3eba0343808a7c3` そのもの（base `feat/plugin-v2` の先端 `cae50506401577f840fb22d81ea5aa87d5fa9c2b` は head の祖先なので、merge したツリーは作っていない）。修正用の worktree `external/resoloop/.worktrees/create-reso-world-issue-101-plugin-docs`（未コミットの変更なし、HEAD が PR head と同じ）で実行した。
+
+| コマンド | 終了コード | 結果 |
+| --- | --- | --- |
+| `dotnet build ResoLoop.slnx --disable-build-servers` | 0 | エラー 0 |
+| `dotnet test ResoLoop.slnx --no-build` | 0 | RLoop.Tests 592 件・RLoop.IntegrationTests 22 件、失敗 0 |
+| `git diff --check cae50506 348c2884` | 0 | 問題なし |
+
+元の Spec の受け入れ基準の「回帰」（`dotnet build`・`dotnet test` の成功）を現行 HEAD で満たす。PR の checks（windows）は `348c2884` で成功。
+
+### サイクル 2 の結論
+
+結論 2（修正不要としてマージ）。CI の確認・状況の投稿・マージは `finalize.py` が行う。PR は closing Issue を持たない（create-reso-world#101 は Refs で参照しているだけ）ので、#101 にはマージの結果と残りの作業をコメントする。
